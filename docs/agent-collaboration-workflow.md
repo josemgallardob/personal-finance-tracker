@@ -7,8 +7,9 @@ together without duplicating work, sharing branches concurrently, or publishing
 private planning documents. It applies whenever implementation is split across
 multiple agents and worktrees.
 
-The project owner remains the final authority for product decisions, pull request
-approval, and merge authorization.
+The project owner remains the final authority for product decisions and changes
+to this workflow. The coordinator has the authority to merge verified area pull
+requests when the required GitHub Actions checks pass.
 
 ## Orca as the orchestration layer
 
@@ -102,10 +103,11 @@ The project owner:
 
 - chooses product priorities and accepts or rejects unresolved product decisions;
 - decides when an area may start if prioritization is ambiguous;
-- reviews and authorizes merging pull requests;
+- may request exceptional review or intervention in the merge workflow;
 - may reassign the coordinator or an area owner explicitly.
 
-No agent may infer product acceptance or merge authorization from silence.
+No agent may infer product acceptance from silence. Merge authority follows the
+verified-area and required-checks policy defined in the pull request lifecycle.
 
 ### Coordinating agent
 
@@ -376,5 +378,6 @@ the new editor rereads the canonical document before updating it.
 - The private board matches observable Git and CI state.
 - No area, branch, worktree, or shared file has multiple owners.
 - Newly ready work respects integrated dependencies and accepted decisions.
-- Pull requests are not merged without project-owner authorization.
+- Area pull requests are merged by the coordinator only after all required
+  GitHub Actions checks pass and the PR scope has been verified.
 - Completed worktrees are removed only after checking for local changes.
