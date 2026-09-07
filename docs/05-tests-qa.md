@@ -228,19 +228,22 @@ GitHub Actions es el proveedor de CI. El flujo inicial está implementado en
 
 ### Disparador
 
-Los workflows se ejecutan exclusivamente con el evento `pull_request` cuando la
-rama de destino sea:
+El workflow tiene dos disparadores complementarios:
 
-- `main`, rama de integración actual;
-- `stable`, futura rama con el código estable de producción, cuando se cree.
+- `pull_request` sobre `main` y `stable`, para publicar el check obligatorio que
+  permite que GitHub admita el PR en la merge queue;
+- `merge_group` con el tipo `checks_requested`, para volver a ejecutar la misma
+  calidad sobre el merge group completo que GitHub prepara con la versión más
+  reciente de la rama destino y los PRs que estén por delante en la cola.
 
-Abrir, reabrir o actualizar un PR vuelve a evaluar los checks sobre su contenido.
-No se configura por ahora un workflow de CI disparado por `push` después del
-merge.
+No se ejecuta por `push` después del merge. El check del PR es una precondición
+de entrada; el check del merge group es la validación final que autoriza la
+integración del commit compuesto.
 
 ### Checks obligatorios del PR
 
-Cada actualización del PR ejecuta desde el scaffolding inicial:
+Cada ejecución, tanto del PR como de la merge queue, ejecuta desde el scaffolding
+inicial:
 
 1. formato, lint y TypeScript;
 2. tests unitarios;
@@ -260,9 +263,9 @@ de destino no permite merge con checks pendientes o fallidos.
 ### Flujo de ramas
 
 ```text
-feature/*, fix/* o chore/* ──PR + CI──> main
-                                              │
-                                              └── futuro PR + CI ──> stable
+feature/*, fix/* o chore/* ──PR + CI──> merge queue + CI ──> main
+                                                        │
+                                                        └── futuro PR + CI ──> merge queue + CI ──> stable
 ```
 
 La existencia de `stable`, el despliegue desde ella y cualquier ejecución
