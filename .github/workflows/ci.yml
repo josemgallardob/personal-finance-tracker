@@ -49,8 +49,11 @@ jobs:
       - name: Run tests with coverage
         run: npm run test:coverage
 
-      - name: Build production application
-        run: npm run build
+      - name: Apply migrations to a clean database
+        run: npm run verify:clean-migrations
+
+      - name: Build production application without a SQLite file
+        run: npm run verify:build-without-database
 
       - name: Scan repository for secrets
         run: npm run security:secrets
