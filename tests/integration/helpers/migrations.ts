@@ -11,6 +11,7 @@ import { createTemporarySqliteFile } from "./sqlite";
 export const COMMITTED_MIGRATION_TAGS = [
   "0000_workspace_and_preference",
   "0001_classification_and_transactions",
+  "0002_require_integer_amount_minor",
 ] as const;
 
 /** Isolated folder that looks like a drizzle-kit output directory. */

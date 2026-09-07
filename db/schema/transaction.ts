@@ -78,7 +78,7 @@ export const transaction = sqliteTable(
     ),
     check(
       "transaction_amount_minor_is_accepted",
-      sql`${table.amountMinor} >= ${sql.raw(String(MIN_TRANSACTION_MINOR))} and ${table.amountMinor} <= ${sql.raw(String(MAX_TRANSACTION_MINOR))}`,
+      sql`typeof(${table.amountMinor}) = 'integer' and ${table.amountMinor} >= ${sql.raw(String(MIN_TRANSACTION_MINOR))} and ${table.amountMinor} <= ${sql.raw(String(MAX_TRANSACTION_MINOR))}`,
     ),
     check(
       "transaction_date_is_iso_day",

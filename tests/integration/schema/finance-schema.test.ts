@@ -115,6 +115,33 @@ function insertTransaction(
     );
 }
 
+/** Inserts an amount exactly as given, without the numeric helper signature. */
+function insertRawAmount(
+  connection: SqliteConnection,
+  id: string,
+  workspaceId: string,
+  amountMinor: number | string,
+) {
+  connection.sqlite
+    .prepare(
+      `INSERT INTO "transaction" (
+         id, workspace_id, type, amount_minor, date, category_id,
+         concept, note, created_at, updated_at
+       ) VALUES (?, ?, 'expense', ?, '2026-09-06', 'cat-expense', NULL, NULL, ?, ?)`,
+    )
+    .run(id, workspaceId, amountMinor, NOW, NOW);
+}
+
+/** Reads every stored amount with the SQLite storage class it ended up in. */
+function storedAmounts(connection: SqliteConnection) {
+  return connection.sqlite
+    .prepare(
+      `SELECT id, amount_minor AS amountMinor, typeof(amount_minor) AS storedType
+       FROM "transaction" ORDER BY id`,
+    )
+    .all();
+}
+
 function insertTransactionTag(
   connection: SqliteConnection,
   values: {
@@ -441,6 +468,76 @@ describe("classification and transaction schema", () => {
         date: "06/09/2026",
       }),
     ).toThrow(/CHECK constraint failed: transaction_date_is_iso_day/);
+  });
+
+  it("rejects fractional minor amounts on insert and update", () => {
+    const { connection, workspaceId } = openedSchema();
+    insertCategory(connection, {
+      id: "cat-expense",
+      workspaceId,
+      type: "expense",
+    });
+    insertTransaction(connection, {
+      id: "tx-exact",
+      workspaceId,
+      type: "expense",
+      categoryId: "cat-expense",
+      amountMinor: 1299,
+    });
+
+    expect(() =>
+      insertTransaction(connection, {
+        id: "tx-fractional",
+        workspaceId,
+        type: "expense",
+        categoryId: "cat-expense",
+        amountMinor: 12.5,
+      }),
+    ).toThrow(/CHECK constraint failed: transaction_amount_minor_is_accepted/);
+    expect(() =>
+      insertRawAmount(connection, "tx-fractional-text", workspaceId, "12.5"),
+    ).toThrow(/CHECK constraint failed: transaction_amount_minor_is_accepted/);
+    expect(() =>
+      connection.sqlite
+        .prepare(`UPDATE "transaction" SET amount_minor = 7.25 WHERE id = ?`)
+        .run("tx-exact"),
+    ).toThrow(/CHECK constraint failed: transaction_amount_minor_is_accepted/);
+
+    insertRawAmount(connection, "tx-lossless-real", workspaceId, 1250.0);
+    insertRawAmount(connection, "tx-lossless-text", workspaceId, "250");
+    insertTransaction(connection, {
+      id: "tx-minimum",
+      workspaceId,
+      type: "expense",
+      categoryId: "cat-expense",
+      amountMinor: MIN_TRANSACTION_MINOR,
+    });
+    insertTransaction(connection, {
+      id: "tx-maximum",
+      workspaceId,
+      type: "expense",
+      categoryId: "cat-expense",
+      amountMinor: MAX_TRANSACTION_MINOR,
+    });
+    connection.sqlite
+      .prepare(`UPDATE "transaction" SET amount_minor = 725 WHERE id = ?`)
+      .run("tx-exact");
+
+    expect(storedAmounts(connection)).toEqual([
+      { id: "tx-exact", amountMinor: 725, storedType: "integer" },
+      { id: "tx-lossless-real", amountMinor: 1250, storedType: "integer" },
+      { id: "tx-lossless-text", amountMinor: 250, storedType: "integer" },
+      {
+        id: "tx-maximum",
+        amountMinor: MAX_TRANSACTION_MINOR,
+        storedType: "integer",
+      },
+      {
+        id: "tx-minimum",
+        amountMinor: MIN_TRANSACTION_MINOR,
+        storedType: "integer",
+      },
+    ]);
   });
 
   it("rejects a category whose type does not match the transaction", () => {
