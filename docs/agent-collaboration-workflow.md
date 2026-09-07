@@ -288,6 +288,8 @@ The pull request:
 - uses English title, summary, checklist, and review discussion;
 - describes behavior and public requirements without copying private backlog text;
 - reports tests, line and branch coverage, remaining gaps, migrations, and risks;
+- is merged with GitHub's merge-commit strategy; squash and rebase merges are not
+  used for area pull requests;
 - waits for all configured GitHub Actions checks.
 
 The coordinator records the pull request as `EN_PR`. Review corrections stay on
