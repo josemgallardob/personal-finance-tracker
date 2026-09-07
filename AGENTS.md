@@ -9,6 +9,10 @@ When work is coordinated across agents or worktrees, read and follow
 full before starting. It defines ownership, dependency gates, task reporting,
 pull request lifecycle, integration, and handoff rules.
 
+Orca is the orchestration layer for multi-agent work. Its Runs, Tasks, Dispatches,
+Workers, messages, and decision gates coordinate provider-specific CLI agents;
+the Git branch, worktree, test, commit, and review policies below still apply.
+
 - One implementation agent owns an area branch at a time.
 - Each active area uses a separate worktree.
 - Implementation agents treat the local private backlog and task board as

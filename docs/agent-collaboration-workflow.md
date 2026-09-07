@@ -7,8 +7,79 @@ together without duplicating work, sharing branches concurrently, or publishing
 private planning documents. It applies whenever implementation is split across
 multiple agents and worktrees.
 
-The project owner remains the final authority for product decisions, pull request
-approval, and merge authorization.
+The project owner remains the final authority for product decisions and changes
+to this workflow. The coordinator has the authority to enqueue verified area
+pull requests; GitHub performs the merge commit after the merge-group checks
+pass.
+
+## Orca as the orchestration layer
+
+Orca is the provider-agnostic orchestration layer for this workflow. It owns the
+coordination runtime and launches agent CLIs; it is not itself the implementation
+agent or a replacement for GitHub. A coordinator can assign different areas to
+Codex, Claude Code, Cursor CLI, Gemini, OpenCode, or another supported CLI without
+changing the task contract or Git workflow. Integration depth and model controls
+vary by agent, so the coordinator records the effective launch configuration.
+
+The relevant Orca concepts are:
+
+| Orca concept | Meaning in this project                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------- |
+| **Run**      | One coordination namespace for an implementation session and its coordinator inbox.                  |
+| **Task**     | A logical work item mapped to a private-board ID such as `TX-02`.                                    |
+| **Dispatch** | One concrete attempt to execute a Task. A retry creates a new Dispatch without duplicating the Task. |
+| **Worker**   | The CLI agent process that implements a Dispatch in its assigned worktree.                           |
+| **Message**  | Heartbeats, questions, escalations, and completion reports exchanged through Orca.                   |
+| **Gate**     | A coordinator-owned decision that blocks dependent Tasks until it is resolved.                       |
+
+The execution relationship is:
+
+```text
+Orca Run
+  ├── private-board task TX-02
+  │    ├── Dispatch 1 → Codex worker → failed
+  │    └── Dispatch 2 → Claude worker → worker_done
+  └── Gate → pending product decision
+```
+
+The coordinator creates or selects the Run, creates Tasks with dependencies,
+launches Workers, consumes messages, and validates output. A Worker reports that
+it has finished; it does not decide that a task is verified, that a PR is
+mergeable, or that a product requirement is accepted.
+
+For an isolated area, the coordinator should launch a new worktree and choose the
+agent and model explicitly when supported:
+
+```bash
+orca orchestration worker-start \
+  --task <orca-task-id> \
+  --worktree new-child \
+  --name transaction-services \
+  --agent codex \
+  --model <provider-model-id> \
+  --effort high \
+  --json
+```
+
+`--agent` selects the CLI harness, `--model` is an opaque model identifier for
+that harness, and `--effort` is valid only when the selected agent/model supports
+it. The project policy is therefore agent-neutral: use the strongest suitable
+worker for the area, but keep the same task scope, tests, commits, evidence, and
+review gates. Provider authentication and model availability remain host
+configuration, not secrets to place in this repository.
+
+Workers use Orca's structured completion protocol. A completion message includes
+the Orca `taskId`, its `dispatchId`, outcome, summary, tests, coverage, remaining
+gaps, blockers, and next action. Long-running workers send heartbeats; questions
+use the coordinator message channel; unresolved product choices become Gates
+rather than guesses. If a worker fails, retry the same logical Task with a new
+Dispatch and retain the failure evidence.
+
+The current Orca flow is `Run` plus `worker-start`. Do not rely on legacy
+coordinator start/stop commands if the installed Orca version reports them as
+retired. See the [Orca orchestration guide](https://www.onorca.dev/docs/cli/orchestration)
+and [supported agents](https://www.onorca.dev/docs/agents/supported) for
+provider-specific launch behavior.
 
 ## Sources of truth
 
@@ -33,10 +104,11 @@ The project owner:
 
 - chooses product priorities and accepts or rejects unresolved product decisions;
 - decides when an area may start if prioritization is ambiguous;
-- reviews and authorizes merging pull requests;
+- may request exceptional review or intervention in the merge workflow;
 - may reassign the coordinator or an area owner explicitly.
 
-No agent may infer product acceptance or merge authorization from silence.
+No agent may infer product acceptance from silence. Merge authority follows the
+verified-area and required-checks policy defined in the pull request lifecycle.
 
 ### Coordinating agent
 
@@ -191,11 +263,12 @@ Suggested next task:
 ```
 
 The report must contain observed results, never planned commands presented as if
-they ran. If direct agent-to-coordinator messaging is unavailable, the agent
-returns the same report to the project owner for forwarding.
+they ran. If Orca messaging is unavailable, the agent returns the same report to
+the project owner or coordinator for forwarding; the task is not considered
+verified until the coordinator has observable evidence.
 
-The coordinator checks the branch, diff, commit, tests, coverage, and task contract.
-It then updates the private board:
+The coordinator checks the branch, diff, commit, tests, coverage, Orca Dispatch
+receipt, and task contract. It then updates the private board:
 
 - `VERIFICADA` when implementation and evidence satisfy the task;
 - `BLOQUEADA` with a concrete owner and next action when progress cannot continue;
@@ -205,9 +278,10 @@ Only after this update may the agent begin the next task in the area.
 
 ### 5. Pull request
 
-When every implementation task in the area is verified, its owner opens one pull
-request against `main`. This project workflow authorizes that area pull request;
-it does not authorize pull requests for unrelated work or automatic merging.
+When every implementation task in the area is verified, the implementation agent
+(worker) opens one pull request from the area worktree branch to `origin/main`.
+This project workflow authorizes that area pull request; it does not authorize
+pull requests for unrelated work.
 
 The pull request:
 
@@ -215,6 +289,8 @@ The pull request:
 - uses English title, summary, checklist, and review discussion;
 - describes behavior and public requirements without copying private backlog text;
 - reports tests, line and branch coverage, remaining gaps, migrations, and risks;
+- is configured for GitHub's merge-commit strategy; squash and rebase merges are
+  not used for area pull requests;
 - waits for all configured GitHub Actions checks.
 
 The coordinator records the pull request as `EN_PR`. Review corrections stay on
@@ -223,19 +299,36 @@ history should retain meaningful task boundaries; fixup commits may be squashed
 into their task before merge when this can be done without disrupting another
 agent.
 
-Neither the coordinator nor the implementation agent merges without explicit
-project-owner authorization.
+When the required pull-request checks pass, the coordinator verifies the scope
+and adds that area pull request to GitHub's merge queue with `Merge when ready`.
+GitHub creates a `merge_group` from the latest `origin/main` and any pull
+requests ahead in the queue, then runs the required checks against that exact
+composition. If those checks pass, GitHub automatically creates the configured
+merge commit. This standing workflow authorization applies only to the pull
+request opened by the worker for the verified area; it does not authorize
+enqueueing unrelated pull requests, bypassing failed or pending checks, or
+resolving review conflicts without the required decision. The coordinator
+records the queue entry, merge result, and checks that were green before
+continuing with cleanup. If the merge group fails, the worker corrects the same
+area branch and the PR returns through both check stages.
 
 ### 6. Integration and cleanup
 
-After the authorized merge, the coordinator:
+After GitHub merges the pull request from the merge queue, the coordinator:
 
-1. Fetches the remote and updates its `main` with a fast-forward pull.
-2. Verifies that the expected implementation and checks are present on `main`.
+1. Fetches `origin` and updates the `main` branch in the original coordinator
+   worktree (the repository checkout under `/repos`) with
+   `git pull --ff-only origin main`. That local `main` must remain synchronized
+   with `origin/main` after every merged pull request.
+2. Verifies that the expected implementation and checks are present on both
+   `origin/main` and the local `main`.
 3. Records the resulting integration commit and marks the area tasks `INTEGRADA`.
-4. Makes newly satisfied dependent tasks ready.
-5. Removes the completed worktree after confirming it has no uncommitted changes.
-6. Removes local or remote branches only when that cleanup is safe and authorized.
+4. Confirms that the merge commit was created by the merge queue and makes newly
+   satisfied dependent tasks ready.
+5. Confirms that the worker worktree has no uncommitted changes, removes that
+   worktree, and removes its local area branch.
+6. Deletes the merged area branch from the remote with
+   `git push origin --delete <area-branch>`.
 
 An open or merged pull request is not sufficient evidence by itself. If the code
 is missing from `main`, reverted, or its required checks failed, the task is not
@@ -269,8 +362,9 @@ but they never edit those files. The coordinator updates the board:
 - after confirming integration into `main`.
 
 The coordinator records responsible agent, branch, commit, commands, coverage,
-uncovered paths, blocker, next action, pull request, and integration evidence. It
-does not invent missing SHAs, test results, or timestamps.
+uncovered paths, Orca agent/model/effort, Dispatch ID, blocker, next action, pull
+request, and integration evidence. It does not invent missing SHAs, Dispatch IDs,
+test results, or timestamps.
 
 The single-editor restriction is operational rather than a Unix permission: all
 agents on the VPS normally use the same operating-system account. If the project
@@ -293,5 +387,7 @@ the new editor rereads the canonical document before updating it.
 - The private board matches observable Git and CI state.
 - No area, branch, worktree, or shared file has multiple owners.
 - Newly ready work respects integrated dependencies and accepted decisions.
-- Pull requests are not merged without project-owner authorization.
+- Area pull requests are added to the merge queue by the coordinator only after
+  the PR checks pass and the scope has been verified; GitHub performs the merge
+  commit only after the merge-group checks pass.
 - Completed worktrees are removed only after checking for local changes.

@@ -4,6 +4,8 @@ Read and follow [AGENTS.md](AGENTS.md) in full before modifying this repository.
 Its language, branching, validation, commit, and push policies are mandatory.
 For coordinated work across agents or worktrees, also read and follow
 [the agent collaboration workflow](docs/agent-collaboration-workflow.md) in full.
+Orca is the provider-agnostic orchestration layer; Codex, Claude, Cursor, and
+other CLI agents are interchangeable workers subject to the same repository rules.
 
 Operational summary:
 
