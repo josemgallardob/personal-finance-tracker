@@ -275,9 +275,10 @@ Only after this update may the agent begin the next task in the area.
 
 ### 5. Pull request
 
-When every implementation task in the area is verified, its owner opens one pull
-request against `main`. This project workflow authorizes that area pull request;
-it does not authorize pull requests for unrelated work or automatic merging.
+When every implementation task in the area is verified, the implementation agent
+(worker) opens one pull request from the area worktree branch to `origin/main`.
+This project workflow authorizes that area pull request; it does not authorize
+pull requests for unrelated work.
 
 The pull request:
 
@@ -293,19 +294,30 @@ history should retain meaningful task boundaries; fixup commits may be squashed
 into their task before merge when this can be done without disrupting another
 agent.
 
-Neither the coordinator nor the implementation agent merges without explicit
-project-owner authorization.
+When all required GitHub Actions checks pass, the coordinator accepts and merges
+that area pull request into `origin/main`. This standing workflow authorization
+applies only to the pull request opened by the worker for the verified area; it
+does not authorize merging unrelated pull requests, bypassing failed or pending
+checks, or resolving review conflicts without the required decision. The
+coordinator records the merge result and the checks that were green before
+continuing with cleanup.
 
 ### 6. Integration and cleanup
 
-After the authorized merge, the coordinator:
+After the coordinator merges the pull request, the coordinator:
 
-1. Fetches the remote and updates its `main` with a fast-forward pull.
-2. Verifies that the expected implementation and checks are present on `main`.
+1. Fetches `origin` and updates the `main` branch in the original coordinator
+   worktree (the repository checkout under `/repos`) with
+   `git pull --ff-only origin main`. That local `main` must remain synchronized
+   with `origin/main` after every merged pull request.
+2. Verifies that the expected implementation and checks are present on both
+   `origin/main` and the local `main`.
 3. Records the resulting integration commit and marks the area tasks `INTEGRADA`.
 4. Makes newly satisfied dependent tasks ready.
-5. Removes the completed worktree after confirming it has no uncommitted changes.
-6. Removes local or remote branches only when that cleanup is safe and authorized.
+5. Confirms that the worker worktree has no uncommitted changes, removes that
+   worktree, and removes its local area branch.
+6. Deletes the merged area branch from the remote with
+   `git push origin --delete <area-branch>`.
 
 An open or merged pull request is not sufficient evidence by itself. If the code
 is missing from `main`, reverted, or its required checks failed, the task is not
