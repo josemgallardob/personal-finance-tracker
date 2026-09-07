@@ -8,8 +8,9 @@ private planning documents. It applies whenever implementation is split across
 multiple agents and worktrees.
 
 The project owner remains the final authority for product decisions and changes
-to this workflow. The coordinator has the authority to merge verified area pull
-requests when the required GitHub Actions checks pass.
+to this workflow. The coordinator has the authority to enqueue verified area
+pull requests; GitHub performs the merge commit after the merge-group checks
+pass.
 
 ## Orca as the orchestration layer
 
@@ -288,8 +289,8 @@ The pull request:
 - uses English title, summary, checklist, and review discussion;
 - describes behavior and public requirements without copying private backlog text;
 - reports tests, line and branch coverage, remaining gaps, migrations, and risks;
-- is merged with GitHub's merge-commit strategy; squash and rebase merges are not
-  used for area pull requests;
+- is configured for GitHub's merge-commit strategy; squash and rebase merges are
+  not used for area pull requests;
 - waits for all configured GitHub Actions checks.
 
 The coordinator records the pull request as `EN_PR`. Review corrections stay on
@@ -298,17 +299,22 @@ history should retain meaningful task boundaries; fixup commits may be squashed
 into their task before merge when this can be done without disrupting another
 agent.
 
-When all required GitHub Actions checks pass, the coordinator accepts and merges
-that area pull request into `origin/main`. This standing workflow authorization
-applies only to the pull request opened by the worker for the verified area; it
-does not authorize merging unrelated pull requests, bypassing failed or pending
-checks, or resolving review conflicts without the required decision. The
-coordinator records the merge result and the checks that were green before
-continuing with cleanup.
+When the required pull-request checks pass, the coordinator verifies the scope
+and adds that area pull request to GitHub's merge queue with `Merge when ready`.
+GitHub creates a `merge_group` from the latest `origin/main` and any pull
+requests ahead in the queue, then runs the required checks against that exact
+composition. If those checks pass, GitHub automatically creates the configured
+merge commit. This standing workflow authorization applies only to the pull
+request opened by the worker for the verified area; it does not authorize
+enqueueing unrelated pull requests, bypassing failed or pending checks, or
+resolving review conflicts without the required decision. The coordinator
+records the queue entry, merge result, and checks that were green before
+continuing with cleanup. If the merge group fails, the worker corrects the same
+area branch and the PR returns through both check stages.
 
 ### 6. Integration and cleanup
 
-After the coordinator merges the pull request, the coordinator:
+After GitHub merges the pull request from the merge queue, the coordinator:
 
 1. Fetches `origin` and updates the `main` branch in the original coordinator
    worktree (the repository checkout under `/repos`) with
@@ -317,7 +323,8 @@ After the coordinator merges the pull request, the coordinator:
 2. Verifies that the expected implementation and checks are present on both
    `origin/main` and the local `main`.
 3. Records the resulting integration commit and marks the area tasks `INTEGRADA`.
-4. Makes newly satisfied dependent tasks ready.
+4. Confirms that the merge commit was created by the merge queue and makes newly
+   satisfied dependent tasks ready.
 5. Confirms that the worker worktree has no uncommitted changes, removes that
    worktree, and removes its local area branch.
 6. Deletes the merged area branch from the remote with
@@ -380,6 +387,7 @@ the new editor rereads the canonical document before updating it.
 - The private board matches observable Git and CI state.
 - No area, branch, worktree, or shared file has multiple owners.
 - Newly ready work respects integrated dependencies and accepted decisions.
-- Area pull requests are merged by the coordinator only after all required
-  GitHub Actions checks pass and the PR scope has been verified.
+- Area pull requests are added to the merge queue by the coordinator only after
+  the PR checks pass and the scope has been verified; GitHub performs the merge
+  commit only after the merge-group checks pass.
 - Completed worktrees are removed only after checking for local changes.
