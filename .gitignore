@@ -145,3 +145,7 @@ vite.config.ts.timestamp-*
 
 # Local file drops
 .orca/
+
+# Planning documents
+/docs/07-user-story-backlog.md
+/docs/08-agent-implementation-tasks.md
