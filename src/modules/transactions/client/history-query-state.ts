@@ -2,13 +2,16 @@
  * URL source of truth for Todos history filters.
  *
  * The browser history stores the same dimensions the list adapter sends:
- * free-text `q`, a single type, a single category and repeated `tagId` values
- * with OR semantics. Unknown keys such as `tab` stay untouched so switching
- * filters cannot drop the active section. Duplicate tag identifiers collapse
- * in first-seen order; empty text is omitted rather than stored as `q=`.
+ * free-text `q`, inclusive `dateFrom`/`dateTo` LocalDate bounds, a single type,
+ * a single category and repeated `tagId` values with OR semantics. Unknown keys
+ * such as `tab` stay untouched so switching filters cannot drop the active
+ * section. Duplicate tag identifiers collapse in first-seen order; empty text
+ * is omitted rather than stored as `q=`. Invalid civil dates in the URL are
+ * ignored instead of being converted through a time zone.
  */
 
 import { encodeApiQuery } from "../../../shared/client/query";
+import { parseLocalDate, type LocalDate } from "../../../shared/domain/dates";
 import {
   isTransactionType,
   type TransactionType,
@@ -19,11 +22,20 @@ import { readHistoryTab, type HistoryTab } from "../ui/history-copy";
 /** Milliseconds to wait after the last keystroke before committing `q`. */
 export const HISTORY_SEARCH_DEBOUNCE_MS = 300;
 
-const FILTER_KEYS = ["q", "type", "categoryId", "tagId"] as const;
+const FILTER_KEYS = [
+  "q",
+  "dateFrom",
+  "dateTo",
+  "type",
+  "categoryId",
+  "tagId",
+] as const;
 
 /** Applied Todos filters, already unique and free of empty values. */
 export interface HistoryQueryState {
   readonly q: string;
+  readonly dateFrom: LocalDate | null;
+  readonly dateTo: LocalDate | null;
   readonly type: TransactionType | null;
   readonly categoryId: string | null;
   readonly tagIds: readonly string[];
@@ -31,6 +43,8 @@ export interface HistoryQueryState {
 
 export const emptyHistoryQueryState: HistoryQueryState = {
   q: "",
+  dateFrom: null,
+  dateTo: null,
   type: null,
   categoryId: null,
   tagIds: [],
@@ -40,6 +54,8 @@ export const emptyHistoryQueryState: HistoryQueryState = {
 export function isHistoryQueryEmpty(state: HistoryQueryState): boolean {
   return (
     state.q === "" &&
+    state.dateFrom === null &&
+    state.dateTo === null &&
     state.type === null &&
     state.categoryId === null &&
     state.tagIds.length === 0
@@ -52,6 +68,8 @@ export function historyQueryEquals(
 ): boolean {
   return (
     left.q === right.q &&
+    left.dateFrom === right.dateFrom &&
+    left.dateTo === right.dateTo &&
     left.type === right.type &&
     left.categoryId === right.categoryId &&
     left.tagIds.length === right.tagIds.length &&
@@ -82,6 +100,19 @@ function readSingle(params: URLSearchParams, key: string): string | null {
   return first === "" ? null : first;
 }
 
+function readLocalDate(
+  params: URLSearchParams,
+  key: "dateFrom" | "dateTo",
+): LocalDate | null {
+  const raw = readSingle(params, key);
+  if (raw === null) {
+    return null;
+  }
+
+  const parsed = parseLocalDate(raw);
+  return parsed.ok ? parsed.value : null;
+}
+
 /** Reads the documented filter keys from a history URL. */
 export function parseHistoryQueryState(
   params: URLSearchParams,
@@ -93,6 +124,8 @@ export function parseHistoryQueryState(
 
   return {
     q,
+    dateFrom: readLocalDate(params, "dateFrom"),
+    dateTo: readLocalDate(params, "dateTo"),
     type,
     categoryId: readSingle(params, "categoryId"),
     tagIds: uniqueTagIds(params.getAll("tagId").map((tagId) => tagId.trim())),
@@ -115,6 +148,14 @@ export function writeHistoryQueryState(
 
   if (state.q !== "") {
     next.set("q", state.q);
+  }
+
+  if (state.dateFrom !== null) {
+    next.set("dateFrom", state.dateFrom);
+  }
+
+  if (state.dateTo !== null) {
+    next.set("dateTo", state.dateTo);
   }
 
   if (state.type !== null) {
@@ -155,6 +196,8 @@ export function toTransactionListQuery(
   const tagIds = uniqueTagIds(state.tagIds);
 
   return {
+    dateFrom: state.dateFrom ?? undefined,
+    dateTo: state.dateTo ?? undefined,
     q: state.q === "" ? undefined : state.q,
     type: state.type ?? undefined,
     categoryId: state.categoryId ?? undefined,
@@ -174,6 +217,8 @@ export function toTransactionListQuery(
 export function historyQueryRequestKey(state: HistoryQueryState): string {
   const query = toTransactionListQuery(state);
   return `transactions:history${encodeApiQuery({
+    dateFrom: query.dateFrom,
+    dateTo: query.dateTo,
     q: query.q,
     type: query.type,
     categoryId: query.categoryId,
@@ -188,6 +233,10 @@ export function withoutHistoryChip(
   switch (chip.kind) {
     case "q":
       return { ...state, q: "" };
+    case "dateFrom":
+      return { ...state, dateFrom: null };
+    case "dateTo":
+      return { ...state, dateTo: null };
     case "type":
       return { ...state, type: null };
     case "category":
@@ -203,6 +252,8 @@ export function withoutHistoryChip(
 /** One removable summary of an applied filter. */
 export type HistoryChip =
   | { readonly kind: "q"; readonly label: string }
+  | { readonly kind: "dateFrom"; readonly label: string }
+  | { readonly kind: "dateTo"; readonly label: string }
   | { readonly kind: "type"; readonly label: string }
   | { readonly kind: "category"; readonly label: string }
   | { readonly kind: "tag"; readonly label: string; readonly tagId: string };

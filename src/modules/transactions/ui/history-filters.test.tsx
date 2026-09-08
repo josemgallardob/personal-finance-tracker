@@ -80,6 +80,7 @@ describe("HistoryFilters", () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
     const value = {
+      ...emptyHistoryQueryState,
       q: "Café",
       type: "expense" as const,
       categoryId: "cat-food",

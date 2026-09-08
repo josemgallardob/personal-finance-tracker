@@ -128,6 +128,14 @@ function historyFetch(options?: {
       if (categoryId) {
         listed = listed.filter((item) => item.categoryId === categoryId);
       }
+      const dateFrom = params.get("dateFrom");
+      const dateTo = params.get("dateTo");
+      if (dateFrom) {
+        listed = listed.filter((item) => item.date >= dateFrom);
+      }
+      if (dateTo) {
+        listed = listed.filter((item) => item.date <= dateTo);
+      }
       if (tagIds.length > 0) {
         listed = listed.filter((item) =>
           item.tagIds.some((tagId) => tagIds.includes(tagId)),
@@ -667,6 +675,69 @@ describe("HistoryList", () => {
     });
     expect(
       screen.getByRole("rowheader", { name: "Supermercado" }),
+    ).toBeVisible();
+  });
+
+  it("combines an open dateFrom bound with type so only matching rows remain", async () => {
+    const user = userEvent.setup();
+    const fetchImpl = historyFetch();
+    render(<ControlledHistory fetchImpl={fetchImpl} />);
+
+    await screen.findByLabelText(historyCopy.searchLabel);
+    await user.click(
+      screen.getByRole("button", { name: historyCopy.dateRangeLabel }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: historyCopy.dateRangeTitle,
+    });
+    await user.type(
+      within(dialog).getByLabelText(historyCopy.dateFromLabel),
+      "03/08/2026",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: historyCopy.dateRangeApply }),
+    );
+    await user.selectOptions(
+      screen.getByLabelText(historyCopy.typeLabel),
+      "income",
+    );
+
+    expect(
+      await screen.findByRole("rowheader", { name: "Nómina" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("rowheader", { name: "Supermercado" }),
+    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        fetchImpl.mock.calls.some(([path]) => {
+          const href = String(path);
+          return (
+            href.includes("dateFrom=2026-08-03") && href.includes("type=income")
+          );
+        }),
+      ).toBe(true);
+    });
+  });
+
+  it("keeps the date panel and stacked rows on a mobile viewport", async () => {
+    stubViewport(false);
+    const user = userEvent.setup();
+    render(<ControlledHistory fetchImpl={historyFetch()} />);
+
+    await screen.findByLabelText(historyCopy.searchLabel);
+    await user.click(
+      screen.getByRole("button", { name: historyCopy.dateRangeLabel }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.querySelector("[data-date-range-layout='mobile']")).not.toBe(
+      null,
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: historyCopy.dateRangeCancel }),
+    );
+    expect(
+      await screen.findByRole("list", { name: historyCopy.caption }),
     ).toBeVisible();
   });
 });

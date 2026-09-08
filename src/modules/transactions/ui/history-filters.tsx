@@ -22,7 +22,9 @@ import {
   type HistoryChip,
   type HistoryQueryState,
 } from "../client/history-query-state";
+import { DateRangeDialog } from "./date-range-dialog";
 import { historyCopy } from "./history-copy";
+import { formatLocalDateAsSpanish } from "./transaction-form-schema";
 
 export interface HistoryFiltersProps {
   readonly categories: readonly CategoryDto[];
@@ -99,6 +101,19 @@ export function HistoryFilters({
               value={draftQ}
             />
           </Field>
+        </div>
+        <div className="min-w-0 sm:w-56">
+          <DateRangeDialog
+            disabled={disabled}
+            onApply={(range) => {
+              onChange({
+                ...value,
+                dateFrom: range.dateFrom,
+                dateTo: range.dateTo,
+              });
+            }}
+            value={{ dateFrom: value.dateFrom, dateTo: value.dateTo }}
+          />
         </div>
         <div className="min-w-0 sm:w-48">
           <Field id="history-type" label={historyCopy.typeLabel}>
@@ -227,6 +242,20 @@ export function historyChips(
 
   if (state.q !== "") {
     chips.push({ kind: "q", label: historyCopy.searchChip(state.q) });
+  }
+
+  if (state.dateFrom !== null) {
+    chips.push({
+      kind: "dateFrom",
+      label: historyCopy.dateFromChip(formatLocalDateAsSpanish(state.dateFrom)),
+    });
+  }
+
+  if (state.dateTo !== null) {
+    chips.push({
+      kind: "dateTo",
+      label: historyCopy.dateToChip(formatLocalDateAsSpanish(state.dateTo)),
+    });
   }
 
   if (state.type !== null) {

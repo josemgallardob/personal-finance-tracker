@@ -35,7 +35,7 @@ import { DeleteTransactionDialog } from "./delete-dialog";
 import { DuplicateTransactionDialog } from "./duplicate-dialog";
 import { EditTransactionDialog } from "./edit-dialog";
 import { HistoryFilters } from "./history-filters";
-import { historyCopy } from "./history-copy";
+import { historyCopy, HISTORY_LIST_START_ID } from "./history-copy";
 import { loadHistoryCatalogs } from "./history-load";
 import {
   historyCategoryLabel,
@@ -194,7 +194,11 @@ export function HistoryList({
   const showRows = history.status === "ready" && snapshotItems.length > 0;
 
   return (
-    <div className="flex w-full max-w-full min-w-0 flex-col gap-4">
+    <div
+      className="flex w-full max-w-full min-w-0 flex-col gap-4"
+      id={HISTORY_LIST_START_ID}
+      tabIndex={-1}
+    >
       <HistoryFilters
         categories={categories}
         onChange={setApplied}

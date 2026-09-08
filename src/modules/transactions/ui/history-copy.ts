@@ -43,7 +43,28 @@ export const historyCopy = {
   removeFilter: (label: string) => `Quitar filtro ${label}`,
   searchChip: (query: string) => `Búsqueda: ${query}`,
   tabsLabel: "Secciones de movimientos",
+  dateRangeApply: "Aplicar",
+  dateRangeCancel: "Cancelar",
+  dateRangeDescription:
+    "Los extremos son inclusivos. Puedes dejar Desde o Hasta vacío.",
+  dateRangeLabel: "Fechas",
+  dateRangeTitle: "Rango de fechas",
+  dateFromCalendar: "Calendario desde",
+  dateFromChip: (date: string) => `Desde: ${date}`,
+  dateFromLabel: "Desde",
+  dateHint: "Formato dd/mm/aaaa.",
+  dateInvalid: "Introduce una fecha válida",
+  dateInverted: "La fecha inicial no puede ser posterior a la final",
+  dateToCalendar: "Calendario hasta",
+  dateToChip: (date: string) => `Hasta: ${date}`,
+  dateToLabel: "Hasta",
+  dateRangeTriggerBoth: (from: string, to: string) => `${from} – ${to}`,
+  dateRangeTriggerFrom: (date: string) => `Desde ${date}`,
+  dateRangeTriggerTo: (date: string) => `Hasta ${date}`,
 } as const;
+
+/** Focus target after applying a date range, at the start of the history. */
+export const HISTORY_LIST_START_ID = "history-list-start";
 
 /** Query value of the Todos history tab. */
 export const HISTORY_ALL_TAB = "all";

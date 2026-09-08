@@ -61,6 +61,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
+import { emptyHistoryQueryState } from "./history-query-state";
 import { useHistoryQueryState } from "./use-history-query-state";
 
 afterEach(() => {
@@ -79,6 +80,7 @@ function QueryProbe() {
       <button
         onClick={() => {
           setState({
+            ...emptyHistoryQueryState,
             q: "Café & té",
             type: "expense",
             categoryId: null,
@@ -91,12 +93,7 @@ function QueryProbe() {
       </button>
       <button
         onClick={() => {
-          setState({
-            q: "",
-            type: null,
-            categoryId: null,
-            tagIds: [],
-          });
+          setState(emptyHistoryQueryState);
         }}
         type="button"
       >
