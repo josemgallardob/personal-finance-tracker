@@ -16,6 +16,11 @@ import {
   type Category,
   createCategory,
 } from "../../../src/modules/classification/domain/category";
+import {
+  type Tag,
+  createTag,
+} from "../../../src/modules/classification/domain/tag";
+import { sqliteTagRepository } from "../../../src/modules/classification/infrastructure/sqlite-tag-repository";
 import type { TransactionType } from "../../../src/modules/transactions/domain/transaction-type";
 import {
   type EnvSource,
@@ -111,6 +116,30 @@ export function storeCategory(
 
   if (!inserted.ok) {
     throw new Error(`Expected a stored category: ${JSON.stringify(inserted)}`);
+  }
+
+  return inserted.value;
+}
+
+/** Stores a tag through the real classification adapter. */
+export function storeTag(fixture: HttpFixture, name: string): Tag {
+  const built = createTag({
+    id: randomUUID(),
+    name,
+    archivedAt: null,
+  });
+
+  if (!built.ok) {
+    throw new Error(`Expected a valid tag: ${JSON.stringify(built)}`);
+  }
+
+  const inserted = sqliteTagRepository.insertTag(
+    classificationUnit(fixture.connection),
+    { workspaceId: fixture.workspaceId, tag: built.value },
+  );
+
+  if (!inserted.ok) {
+    throw new Error(`Expected a stored tag: ${JSON.stringify(inserted)}`);
   }
 
   return inserted.value;
