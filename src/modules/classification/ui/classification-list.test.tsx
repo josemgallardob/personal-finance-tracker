@@ -26,7 +26,9 @@ import {
   activeArchivedSummary,
   classificationCopy,
   classificationFailureCopy,
+  renameTagLabel,
 } from "./classification-copy";
+import { classificationFormCopy } from "./classification-form";
 
 const REQUEST_ID = "req-classification";
 
@@ -485,17 +487,120 @@ describe("ClassificationList", () => {
       `H2:${classificationCopy.categoriesTitle}`,
       `H2:${classificationCopy.tagsTitle}`,
     ]);
-    expect(mobile.buttons).toEqual([classificationCopy.categoriesRetryLabel]);
+    expect(mobile.buttons).toEqual([
+      null,
+      classificationCopy.categoriesRetryLabel,
+      null,
+      renameTagLabel(activeTag.name),
+      renameTagLabel(archivedTag.name),
+    ]);
     expect(mobile.tags).toEqual([
-      "Vacaciones",
-      `Navidad${classificationCopy.archivedBadge}`,
+      `${activeTag.name}${classificationCopy.renameAction}`,
+      `${archivedTag.name}${classificationCopy.archivedBadge}${classificationCopy.renameAction}`,
     ]);
 
     await user.tab();
     expect(
       screen.getByRole("button", {
-        name: classificationCopy.categoriesRetryLabel,
+        name: classificationCopy.createCategory,
       }),
     ).toHaveFocus();
+  });
+
+  it("creates a category, refreshes the catalog and restores focus", async () => {
+    const user = userEvent.setup();
+    let categories = [expenseCategory];
+    const created = {
+      id: "cat-new",
+      name: "Café",
+      type: "expense" as const,
+      isArchived: false,
+    };
+    const fetchImpl = vi.fn<FetchLike>((input, init) => {
+      const method = init?.method ?? "GET";
+
+      if (input.startsWith("/api/tags")) {
+        return Promise.resolve(dataResponse([activeTag]));
+      }
+
+      if (method === "POST" && input === "/api/categories") {
+        const body = JSON.parse(String(init.body)) as {
+          name: string;
+          type: "expense" | "income";
+        };
+        expect(body).toEqual({ name: "Café", type: "expense" });
+        categories = [...categories, { ...created, name: body.name }];
+        return Promise.resolve(dataResponse(created, 201));
+      }
+
+      return Promise.resolve(dataResponse(categories));
+    });
+
+    renderList(fetchImpl);
+    await screen.findByText("Alquiler");
+
+    const opener = screen.getByRole("button", {
+      name: classificationCopy.createCategory,
+    });
+    await user.click(opener);
+    await user.type(
+      screen.getByLabelText(new RegExp(classificationFormCopy.nameLabel)),
+      "Café",
+    );
+    await user.click(
+      screen.getByRole("button", { name: classificationFormCopy.save }),
+    );
+
+    expect(await screen.findByText("Café")).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+    expect(
+      fetchImpl.mock.calls.filter((call) => call[1]?.method === "POST"),
+    ).toHaveLength(1);
+  });
+
+  it("renames a tag through the list and never sends a type", async () => {
+    const user = userEvent.setup();
+    let tags = [activeTag];
+    const fetchImpl = vi.fn<FetchLike>((input, init) => {
+      const method = init?.method ?? "GET";
+
+      if (input.startsWith("/api/categories")) {
+        return Promise.resolve(dataResponse([expenseCategory]));
+      }
+
+      if (method === "PATCH" && input === `/api/tags/${activeTag.id}`) {
+        const body = JSON.parse(String(init.body)) as { name: string };
+        expect(body).toEqual({ name: "Viaje" });
+        tags = [{ ...activeTag, name: body.name }];
+        return Promise.resolve(dataResponse({ ...activeTag, name: body.name }));
+      }
+
+      return Promise.resolve(dataResponse(tags));
+    });
+
+    renderList(fetchImpl);
+    await screen.findByText("Vacaciones");
+
+    const opener = screen.getByRole("button", {
+      name: renameTagLabel(activeTag.name),
+    });
+    await user.click(opener);
+    const name = screen.getByLabelText(
+      new RegExp(classificationFormCopy.nameLabel),
+    );
+    await user.clear(name);
+    await user.type(name, "Viaje");
+    await user.click(
+      screen.getByRole("button", { name: classificationFormCopy.save }),
+    );
+
+    expect(await screen.findByText("Viaje")).toBeVisible();
+    expect(screen.queryByText("Vacaciones")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: renameTagLabel("Viaje") }),
+      ).toHaveFocus();
+    });
   });
 });

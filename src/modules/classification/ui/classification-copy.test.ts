@@ -12,6 +12,8 @@ import {
   activeArchivedSummary,
   classificationFailureCopy,
   classificationFailureMessage,
+  renameCategoryLabel,
+  renameTagLabel,
 } from "./classification-copy";
 
 describe("classificationFailureMessage", () => {
@@ -56,6 +58,13 @@ describe("classificationFailureMessage", () => {
 
     expect(message).toBe(classificationFailureCopy.aborted);
     expect(message).not.toBe(classificationFailureCopy.network);
+  });
+});
+
+describe("rename labels", () => {
+  it("identifies the row being renamed without mixing English identifiers", () => {
+    expect(renameCategoryLabel("Alquiler")).toBe("Renombrar Alquiler");
+    expect(renameTagLabel("Vacaciones")).toBe("Renombrar Vacaciones");
   });
 });
 

@@ -15,7 +15,7 @@
  * while one of the two is empty.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createApiClient } from "../../../shared/client/api-client";
 import { useFinancialDataRevision } from "../../../shared/client/financial-data-provider";
@@ -31,11 +31,15 @@ import {
 import type { CategoryDto } from "../contracts/category";
 import type { TagDto } from "../contracts/tag";
 import { CategoryIcon } from "./category-icon";
+import { CategoryDialog, type CategoryDialogMode } from "./category-dialog";
 import {
   activeArchivedSummary,
   classificationCopy,
   classificationFailureMessage,
+  renameCategoryLabel,
+  renameTagLabel,
 } from "./classification-copy";
+import { TagDialog, type TagDialogMode } from "./tag-dialog";
 
 const CATEGORY_REQUEST_KEY = "classification:categories:all";
 const TAG_REQUEST_KEY = "classification:tags:all";
@@ -97,6 +101,7 @@ interface CategoryTypeSectionProps {
   readonly categories: readonly CategoryDto[];
   readonly emptyLabel: string;
   readonly headingId: string;
+  readonly onRename: (category: CategoryDto) => void;
   readonly title: string;
 }
 
@@ -104,6 +109,7 @@ function CategoryTypeSection({
   categories,
   emptyLabel,
   headingId,
+  onRename,
   title,
 }: CategoryTypeSectionProps) {
   const archived = countArchived(categories);
@@ -135,6 +141,17 @@ function CategoryTypeSection({
                 {category.name}
               </span>
               {category.isArchived ? <ArchivedBadge /> : null}
+              <Button
+                aria-label={renameCategoryLabel(category.name)}
+                className="w-auto shrink-0 px-4"
+                data-classification-focus={category.id}
+                onClick={() => {
+                  onRename(category);
+                }}
+                variant="secondary"
+              >
+                {classificationCopy.renameAction}
+              </Button>
             </li>
           ))}
         </ul>
@@ -150,8 +167,10 @@ function CategoryTypeSection({
 
 function CategoryCatalog({
   categories,
+  onRename,
 }: {
   categories: readonly CategoryDto[];
+  onRename: (category: CategoryDto) => void;
 }) {
   const grouped = useMemo(
     () => groupCategoriesByType(categories),
@@ -173,19 +192,27 @@ function CategoryCatalog({
         categories={grouped.expense}
         emptyLabel={classificationCopy.expenseEmpty}
         headingId="categories-expense-heading"
+        onRename={onRename}
         title={classificationCopy.expenseTitle}
       />
       <CategoryTypeSection
         categories={grouped.income}
         emptyLabel={classificationCopy.incomeEmpty}
         headingId="categories-income-heading"
+        onRename={onRename}
         title={classificationCopy.incomeTitle}
       />
     </div>
   );
 }
 
-function TagCatalog({ tags }: { tags: readonly TagDto[] }) {
+function TagCatalog({
+  tags,
+  onRename,
+}: {
+  tags: readonly TagDto[];
+  onRename: (tag: TagDto) => void;
+}) {
   const archived = countArchived(tags);
 
   if (tags.length === 0) {
@@ -213,6 +240,17 @@ function TagCatalog({ tags }: { tags: readonly TagDto[] }) {
           >
             <span className="min-w-0 break-words">{tag.name}</span>
             {tag.isArchived ? <ArchivedBadge /> : null}
+            <Button
+              aria-label={renameTagLabel(tag.name)}
+              className="h-11 min-h-11 w-auto shrink-0 px-3 text-sm"
+              data-classification-focus={tag.id}
+              onClick={() => {
+                onRename(tag);
+              }}
+              variant="secondary"
+            >
+              {classificationCopy.renameAction}
+            </Button>
           </li>
         ))}
       </ul>
@@ -238,6 +276,10 @@ export function ClassificationList({
   api = defaultClassificationApi,
 }: ClassificationListProps = {}) {
   const { revision, refreshEpoch } = useFinancialDataRevision();
+  const [categoryDialog, setCategoryDialog] =
+    useState<CategoryDialogMode | null>(null);
+  const [tagDialog, setTagDialog] = useState<TagDialogMode | null>(null);
+  const restoreFocusId = useRef<string | null>(null);
 
   const categories = useResource<readonly CategoryDto[]>({
     load: (signal) => api.listCategories({ status: "all" }, { signal }),
@@ -253,18 +295,48 @@ export function ClassificationList({
     refreshEpoch,
   });
 
+  useEffect(() => {
+    const focusId = restoreFocusId.current;
+    if (
+      focusId === null ||
+      categories.status !== "ready" ||
+      tags.status !== "ready"
+    ) {
+      return;
+    }
+
+    const target = document.querySelector<HTMLButtonElement>(
+      `[data-classification-focus="${CSS.escape(focusId)}"]`,
+    );
+    if (target === null) {
+      return;
+    }
+
+    restoreFocusId.current = null;
+    target.focus();
+  }, [categories.data, categories.status, tags.data, tags.status]);
+
   return (
     <div className="flex w-full max-w-full min-w-0 flex-col gap-8">
       <section
         aria-labelledby="categories-heading"
         className="flex w-full max-w-full min-w-0 flex-col gap-4"
       >
-        <h2
-          id="categories-heading"
-          className="text-heading-sm text-text font-medium"
-        >
-          {classificationCopy.categoriesTitle}
-        </h2>
+        <div className="flex w-full max-w-full min-w-0 flex-wrap items-center justify-between gap-3">
+          <h2
+            id="categories-heading"
+            className="text-heading-sm text-text font-medium"
+          >
+            {classificationCopy.categoriesTitle}
+          </h2>
+          <Button
+            onClick={() => {
+              setCategoryDialog({ kind: "create" });
+            }}
+          >
+            {classificationCopy.createCategory}
+          </Button>
+        </div>
         {categories.status === "loading" ? (
           <LoadingState label={classificationCopy.categoriesLoading} />
         ) : null}
@@ -277,7 +349,12 @@ export function ClassificationList({
           />
         ) : null}
         {categories.status === "ready" ? (
-          <CategoryCatalog categories={categories.data ?? []} />
+          <CategoryCatalog
+            categories={categories.data ?? []}
+            onRename={(category) => {
+              setCategoryDialog({ kind: "rename", category });
+            }}
+          />
         ) : null}
       </section>
 
@@ -285,9 +362,22 @@ export function ClassificationList({
         aria-labelledby="tags-heading"
         className="flex w-full max-w-full min-w-0 flex-col gap-4"
       >
-        <h2 id="tags-heading" className="text-heading-sm text-text font-medium">
-          {classificationCopy.tagsTitle}
-        </h2>
+        <div className="flex w-full max-w-full min-w-0 flex-wrap items-center justify-between gap-3">
+          <h2
+            id="tags-heading"
+            className="text-heading-sm text-text font-medium"
+          >
+            {classificationCopy.tagsTitle}
+          </h2>
+          <Button
+            onClick={() => {
+              setTagDialog({ kind: "create" });
+            }}
+            variant="secondary"
+          >
+            {classificationCopy.createTag}
+          </Button>
+        </div>
         {tags.status === "loading" ? (
           <LoadingState label={classificationCopy.tagsLoading} />
         ) : null}
@@ -299,8 +389,44 @@ export function ClassificationList({
             onRetry={tags.refetch}
           />
         ) : null}
-        {tags.status === "ready" ? <TagCatalog tags={tags.data ?? []} /> : null}
+        {tags.status === "ready" ? (
+          <TagCatalog
+            tags={tags.data ?? []}
+            onRename={(tag) => {
+              setTagDialog({ kind: "rename", tag });
+            }}
+          />
+        ) : null}
       </section>
+
+      <CategoryDialog
+        api={api}
+        existingCategories={categories.data ?? []}
+        mode={categoryDialog}
+        open={categoryDialog !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setCategoryDialog(null);
+          }
+        }}
+        onSaved={(focusId) => {
+          restoreFocusId.current = focusId ?? null;
+        }}
+      />
+      <TagDialog
+        api={api}
+        existingTags={tags.data ?? []}
+        mode={tagDialog}
+        open={tagDialog !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setTagDialog(null);
+          }
+        }}
+        onSaved={(focusId) => {
+          restoreFocusId.current = focusId ?? null;
+        }}
+      />
     </div>
   );
 }

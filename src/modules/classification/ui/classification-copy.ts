@@ -37,7 +37,20 @@ export const classificationCopy = {
     "Las etiquetas archivadas conservan su histórico y no pueden añadirse a nuevos movimientos.",
   archivedBadge: "Archivada",
   retry: "Reintentar",
+  createCategory: "Crear categoría",
+  createTag: "Crear etiqueta",
+  renameAction: "Renombrar",
 } as const;
+
+/** Accessible name of the control that opens the category rename dialog. */
+export function renameCategoryLabel(name: string): string {
+  return `Renombrar ${name}`;
+}
+
+/** Accessible name of the control that opens the tag rename dialog. */
+export function renameTagLabel(name: string): string {
+  return `Renombrar ${name}`;
+}
 
 /** Wording of every failure the transport can hand to the view. */
 export const classificationFailureCopy = {
