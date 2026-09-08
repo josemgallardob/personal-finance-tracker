@@ -15,7 +15,7 @@
 
 import "server-only";
 
-import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lte, type SQL } from "drizzle-orm";
 
 import {
   category,
@@ -30,11 +30,15 @@ import {
 import type { TagId } from "../../classification/domain/tag";
 import type { LocalDate } from "../../../shared/domain/dates";
 import {
+  type ActiveRuleBySourceQuery,
+  type ActiveRulesQuery,
   type AdvanceNextDueDateCommand,
+  type DeactivateRuleCommand,
   type DueRulesQuery,
   type InsertRuleCommand,
   type RecurringResult,
   type RecurringRuleRepository,
+  type ReplaceActiveRuleCommand,
   type RuleForUpdateQuery,
   type StoredRecurringRule,
   failed,
@@ -108,39 +112,86 @@ function findDueRules(
   unit: SqliteUnitOfWork,
   query: DueRulesQuery,
 ): RecurringResult<readonly StoredRecurringRule[]> {
-  let rows: RuleRow[];
+  return selectRules(
+    unit,
+    query.workspaceId,
+    [
+      eq(recurringRule.workspaceId, query.workspaceId),
+      isNull(recurringRule.deactivatedAt),
+      lte(recurringRule.nextDueDate, query.onOrBefore),
+    ],
+    [asc(recurringRule.nextDueDate), asc(recurringRule.id)],
+  );
+}
 
-  try {
-    rows = unit.db
-      .select(SELECTED_COLUMNS)
-      .from(recurringRule)
-      .innerJoin(
-        category,
-        and(
-          eq(category.id, recurringRule.categoryId),
-          eq(category.workspaceId, recurringRule.workspaceId),
-        ),
-      )
-      .where(
-        and(
-          eq(recurringRule.workspaceId, query.workspaceId),
-          isNull(recurringRule.deactivatedAt),
-          lte(recurringRule.nextDueDate, query.onOrBefore),
-        ),
-      )
-      .orderBy(asc(recurringRule.nextDueDate), asc(recurringRule.id))
-      .all();
-  } catch (cause) {
-    return failed("storageFailure", describeCause(cause));
+function findActiveRules(
+  unit: SqliteUnitOfWork,
+  query: ActiveRulesQuery,
+): RecurringResult<readonly StoredRecurringRule[]> {
+  return selectRules(
+    unit,
+    query.workspaceId,
+    [
+      eq(recurringRule.workspaceId, query.workspaceId),
+      isNull(recurringRule.deactivatedAt),
+    ],
+    [
+      asc(recurringRule.type),
+      asc(recurringRule.nextDueDate),
+      asc(recurringRule.id),
+    ],
+  );
+}
+
+function findActiveRuleBySource(
+  unit: SqliteUnitOfWork,
+  query: ActiveRuleBySourceQuery,
+): RecurringResult<StoredRecurringRule | null> {
+  const built = selectRules(
+    unit,
+    query.workspaceId,
+    [
+      eq(recurringRule.workspaceId, query.workspaceId),
+      eq(recurringRule.sourceTransactionId, query.sourceTransactionId),
+      isNull(recurringRule.deactivatedAt),
+    ],
+    [asc(recurringRule.id)],
+  );
+
+  if (!built.ok) {
+    return built;
   }
 
-  return buildRules(unit, query.workspaceId, rows);
+  return succeeded(built.value[0] ?? null);
 }
 
 function findRuleForUpdate(
   unit: SqliteUnitOfWork,
   query: RuleForUpdateQuery,
 ): RecurringResult<StoredRecurringRule | null> {
+  const built = selectRules(
+    unit,
+    query.workspaceId,
+    [
+      eq(recurringRule.workspaceId, query.workspaceId),
+      eq(recurringRule.id, query.ruleId),
+    ],
+    [asc(recurringRule.id)],
+  );
+
+  if (!built.ok) {
+    return built;
+  }
+
+  return succeeded(built.value[0] ?? null);
+}
+
+function selectRules(
+  unit: SqliteUnitOfWork,
+  workspaceId: string,
+  conditions: readonly SQL[],
+  order: readonly SQL[],
+): RecurringResult<readonly StoredRecurringRule[]> {
   let rows: RuleRow[];
 
   try {
@@ -154,26 +205,14 @@ function findRuleForUpdate(
           eq(category.workspaceId, recurringRule.workspaceId),
         ),
       )
-      .where(
-        and(
-          eq(recurringRule.workspaceId, query.workspaceId),
-          eq(recurringRule.id, query.ruleId),
-        ),
-      )
+      .where(and(...conditions))
+      .orderBy(...order)
       .all();
   } catch (cause) {
     return failed("storageFailure", describeCause(cause));
   }
 
-  const built = buildRules(unit, query.workspaceId, rows);
-
-  if (!built.ok) {
-    return built;
-  }
-
-  const [stored] = built.value;
-
-  return succeeded(stored ?? null);
+  return buildRules(unit, workspaceId, rows);
 }
 
 function insertRule(
@@ -271,6 +310,194 @@ function advanceNextDueDate(
   }
 
   return succeeded(command.to);
+}
+
+function replaceActiveRule(
+  unit: SqliteUnitOfWork,
+  command: ReplaceActiveRuleCommand,
+): RecurringResult<RecurringRule> {
+  if (!unit.isTransactional) {
+    return failed("transactionRequired");
+  }
+
+  const stored = command.rule;
+  let updated: { readonly id: string }[];
+
+  try {
+    updated = unit.db
+      .update(recurringRule)
+      .set({
+        sourceTransactionId: stored.sourceTransactionId,
+        type: stored.template.type,
+        amountMinor: stored.template.amountMinor,
+        categoryId: stored.template.categoryId,
+        concept: stored.template.concept,
+        note: stored.template.note,
+        monthlyDay: stored.monthlyDay,
+        nextDueDate: stored.nextDueDate,
+        templateVersion: stored.templateVersion,
+        deactivatedAt: stored.deactivatedAt,
+        updatedAt: stored.updatedAt,
+      })
+      .where(
+        and(
+          eq(recurringRule.workspaceId, command.workspaceId),
+          eq(recurringRule.id, stored.id),
+          eq(recurringRule.templateVersion, command.expectedTemplateVersion),
+          isNull(recurringRule.deactivatedAt),
+        ),
+      )
+      .returning({ id: recurringRule.id })
+      .all();
+  } catch (cause) {
+    return ruleWriteFailure(unit, command.workspaceId, cause);
+  }
+
+  if (updated.length === 0) {
+    return ruleChangeFailure(unit, {
+      workspaceId: command.workspaceId,
+      ruleId: stored.id,
+      expectedTemplateVersion: command.expectedTemplateVersion,
+    });
+  }
+
+  const tags = replaceTemplateTags(
+    unit,
+    command.workspaceId,
+    stored.id,
+    stored.template.tagIds,
+  );
+
+  if (!tags.ok) {
+    return tags;
+  }
+
+  return succeeded(stored);
+}
+
+function deactivateRule(
+  unit: SqliteUnitOfWork,
+  command: DeactivateRuleCommand,
+): RecurringResult<RecurringRule> {
+  let updated: { readonly id: string }[];
+
+  try {
+    updated = unit.db
+      .update(recurringRule)
+      .set({
+        deactivatedAt: command.deactivatedAt,
+        updatedAt: command.deactivatedAt,
+      })
+      .where(
+        and(
+          eq(recurringRule.workspaceId, command.workspaceId),
+          eq(recurringRule.id, command.ruleId),
+          eq(recurringRule.templateVersion, command.expectedTemplateVersion),
+          isNull(recurringRule.deactivatedAt),
+        ),
+      )
+      .returning({ id: recurringRule.id })
+      .all();
+  } catch (cause) {
+    return failed("storageFailure", describeCause(cause));
+  }
+
+  if (updated.length === 0) {
+    return ruleChangeFailure(unit, command);
+  }
+
+  const stored = findRuleForUpdate(unit, {
+    workspaceId: command.workspaceId,
+    ruleId: command.ruleId,
+  });
+
+  if (!stored.ok) {
+    return stored;
+  }
+
+  if (stored.value === null) {
+    return failed("ruleNotFound");
+  }
+
+  return succeeded(stored.value.rule);
+}
+
+function ruleChangeFailure(
+  unit: SqliteUnitOfWork,
+  query: {
+    readonly workspaceId: string;
+    readonly ruleId: string;
+    readonly expectedTemplateVersion: number;
+  },
+): RecurringResult<RecurringRule> {
+  const stored = findRuleForUpdate(unit, {
+    workspaceId: query.workspaceId,
+    ruleId: query.ruleId as RecurringRule["id"],
+  });
+
+  if (!stored.ok) {
+    return stored;
+  }
+
+  if (stored.value === null) {
+    return failed("ruleNotFound");
+  }
+
+  if (stored.value.rule.deactivatedAt !== null) {
+    return failed("alreadyDeactivated");
+  }
+
+  if (stored.value.rule.templateVersion !== query.expectedTemplateVersion) {
+    return failed("staleTemplateVersion");
+  }
+
+  return failed("staleNextDueDate");
+}
+
+function replaceTemplateTags(
+  unit: SqliteUnitOfWork,
+  workspaceId: string,
+  ruleId: string,
+  tagIds: readonly string[],
+): RecurringResult<true> {
+  try {
+    unit.db
+      .delete(recurringRuleTag)
+      .where(
+        and(
+          eq(recurringRuleTag.workspaceId, workspaceId),
+          eq(recurringRuleTag.recurringRuleId, ruleId),
+        ),
+      )
+      .run();
+  } catch (cause) {
+    return failed("storageFailure", describeCause(cause));
+  }
+
+  if (tagIds.length === 0) {
+    return succeeded(true);
+  }
+
+  try {
+    unit.db
+      .insert(recurringRuleTag)
+      .values(
+        tagIds.map((tagId) => ({
+          recurringRuleId: ruleId,
+          tagId,
+          workspaceId,
+        })),
+      )
+      .run();
+  } catch (cause) {
+    if (isForeignKeyViolation(cause)) {
+      return failed("unknownTag", describeCause(cause));
+    }
+
+    return failed("storageFailure", describeCause(cause));
+  }
+
+  return succeeded(true);
 }
 
 /** Rebuilds a batch of rules with their template tags in one further read. */
@@ -450,7 +677,11 @@ function ruleWriteFailure(
 export const sqliteRecurringRuleRepository: RecurringRuleRepository<SqliteUnitOfWork> =
   {
     findDueRules,
+    findActiveRules,
+    findActiveRuleBySource,
     findRuleForUpdate,
     insertRule,
+    replaceActiveRule,
+    deactivateRule,
     advanceNextDueDate,
   };

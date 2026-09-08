@@ -93,8 +93,12 @@ function rules(
 ): RecurringRuleRepository {
   return {
     findDueRules: unused,
+    findActiveRules: unused,
+    findActiveRuleBySource: unused,
     findRuleForUpdate: unused,
     insertRule: unused,
+    replaceActiveRule: unused,
+    deactivateRule: unused,
     advanceNextDueDate: unused,
     ...overrides,
   };

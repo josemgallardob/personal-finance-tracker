@@ -261,11 +261,88 @@ function collectRule<TUnit extends UnitOfWork>(
   }
 }
 
+/**
+ * Materialises every date one rule still owes, inside a transaction the caller
+ * already owns.
+ *
+ * Edit and deactivation use this instead of the scheduled runner: the overdue
+ * dates and the template change must land together, so a concurrent generation
+ * cannot slip between catch-up and the change. Dates another run already
+ * reserved are skipped and the cursor still moves, which is what makes a retry
+ * after a rolled-back edit idempotent.
+ */
+export function catchUpDueDatesInUnit<TUnit extends UnitOfWork>(
+  unit: TUnit,
+  work: {
+    readonly workspaceId: string;
+    readonly ruleId: RecurringRuleId;
+    readonly today: LocalDate;
+    readonly deps: Pick<
+      GenerateDueOccurrencesDeps<TUnit>,
+      "rules" | "occurrences" | "transactions"
+    >;
+    readonly createId: () => string;
+    readonly now: () => number;
+  },
+): RecurringResult<readonly GeneratedDueDate[]> {
+  const stored = work.deps.rules.findRuleForUpdate(unit, {
+    workspaceId: work.workspaceId,
+    ruleId: work.ruleId,
+  });
+
+  if (!stored.ok) {
+    return stored;
+  }
+
+  if (stored.value === null || !isActiveRecurringRule(stored.value.rule)) {
+    return failed("ruleNotFound");
+  }
+
+  const generated: GeneratedDueDate[] = [];
+  let scheduledFor = stored.value.rule.nextDueDate;
+
+  while (compareLocalDates(scheduledFor, work.today) <= 0) {
+    const outcome = materialiseDueDate(unit, {
+      workspaceId: work.workspaceId,
+      ruleId: work.ruleId,
+      scheduledFor,
+      deps: work.deps,
+      createId: work.createId,
+      now: work.now,
+    });
+
+    if (!outcome.ok) {
+      return outcome;
+    }
+
+    if (outcome.value.kind === "generated") {
+      generated.push({
+        ruleId: work.ruleId,
+        scheduledFor,
+        transactionId: outcome.value.transactionId,
+      });
+      scheduledFor = outcome.value.nextDueDate;
+      continue;
+    }
+
+    if (outcome.value.reason === "ruleChanged") {
+      return failed("staleNextDueDate");
+    }
+
+    scheduledFor = outcome.value.nextDueDate;
+  }
+
+  return succeeded(generated);
+}
+
 interface DueDateWork<TUnit extends UnitOfWork> {
   readonly workspaceId: string;
   readonly ruleId: RecurringRuleId;
   readonly scheduledFor: LocalDate;
-  readonly deps: GenerateDueOccurrencesDeps<TUnit>;
+  readonly deps: Pick<
+    GenerateDueOccurrencesDeps<TUnit>,
+    "rules" | "occurrences" | "transactions"
+  >;
   readonly createId: () => string;
   readonly now: () => number;
 }

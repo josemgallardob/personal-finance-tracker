@@ -261,6 +261,52 @@ export function isActiveRecurringRule(rule: RecurringRule): boolean {
   return rule.deactivatedAt === null;
 }
 
+/** Values an accepted edit copies onto an active rule. */
+export interface EditRecurringRuleInput {
+  readonly type: string;
+  readonly amountMinor: number;
+  readonly category: Category;
+  readonly concept: string | null;
+  readonly note: string | null;
+  readonly tagIds: readonly string[];
+  readonly monthlyDay: number;
+  readonly nextDueDate: string;
+  readonly updatedAt: number;
+}
+
+/**
+ * Replaces the template and monthly day of an active rule.
+ *
+ * The version increases so a later writer can tell that the interface was
+ * looking at an older template. A deactivated rule is refused: the MVP never
+ * edits a rule that has already stopped generating.
+ */
+export function editRecurringRule(
+  rule: RecurringRule,
+  input: EditRecurringRuleInput,
+): DomainResult<RecurringRule> {
+  if (!isActiveRecurringRule(rule)) {
+    return invalid([domainError("deactivatedAt", "alreadyDeactivated")]);
+  }
+
+  return createRecurringRule({
+    id: rule.id,
+    sourceTransactionId: rule.sourceTransactionId,
+    type: input.type,
+    amountMinor: input.amountMinor,
+    category: input.category,
+    concept: input.concept,
+    note: input.note,
+    tagIds: input.tagIds,
+    monthlyDay: input.monthlyDay,
+    nextDueDate: input.nextDueDate,
+    templateVersion: rule.templateVersion + 1,
+    deactivatedAt: null,
+    createdAt: rule.createdAt,
+    updatedAt: input.updatedAt,
+  });
+}
+
 /**
  * Stops a rule for good. Deactivation is irreversible, so a rule that is
  * already deactivated is rejected instead of being stamped again.

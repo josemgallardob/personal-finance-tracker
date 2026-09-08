@@ -72,6 +72,33 @@ export interface InsertRuleCommand extends WorkspaceScope {
   readonly rule: RecurringRule;
 }
 
+/** Active rules of the workspace, whether they currently owe a date or not. */
+export type ActiveRulesQuery = WorkspaceScope;
+
+/** Lookup of the active rule that was created from one origin movement. */
+export interface ActiveRuleBySourceQuery extends WorkspaceScope {
+  readonly sourceTransactionId: TransactionId;
+}
+
+/**
+ * Replacement of an active rule and of its template tags.
+ *
+ * The write applies only while the stored template version is still the one the
+ * caller read, so two editors cannot both land and a catch-up that already
+ * bumped the version is detected instead of overwritten.
+ */
+export interface ReplaceActiveRuleCommand extends WorkspaceScope {
+  readonly expectedTemplateVersion: number;
+  readonly rule: RecurringRule;
+}
+
+/** Irreversible stop of an active rule. */
+export interface DeactivateRuleCommand extends WorkspaceScope {
+  readonly ruleId: RecurringRuleId;
+  readonly expectedTemplateVersion: number;
+  readonly deactivatedAt: Timestamp;
+}
+
 /**
  * Conditional move of the next date of a rule.
  *
@@ -107,6 +134,12 @@ export type RecurringRepositoryErrorCode =
   | "alreadyProcessed"
   /** The stored next date is no longer the one the caller advanced from. */
   | "staleNextDueDate"
+  /** The stored template version is no longer the one the caller read. */
+  | "staleTemplateVersion"
+  /** The rule has already been deactivated. */
+  | "alreadyDeactivated"
+  /** The origin movement already has an active rule. */
+  | "activeRuleExists"
   /** No reserved occurrence with that identifier exists. */
   | "occurrenceNotFound"
   /** The scoped workspace does not exist. */
@@ -183,6 +216,46 @@ export interface RecurringRuleRepository<
   insertRule(
     unit: TUnitOfWork,
     command: InsertRuleCommand,
+  ): RecurringResult<RecurringRule>;
+
+  /**
+   * Reads every active rule of the workspace, with its template tags and
+   * category, ordered by type, next date and identifier. Deactivated rules are
+   * absent, including those that still have a next date in the past.
+   */
+  findActiveRules(
+    unit: TUnitOfWork,
+    query: ActiveRulesQuery,
+  ): RecurringResult<readonly StoredRecurringRule[]>;
+
+  /**
+   * Reads the active rule created from one origin movement, or `null` when that
+   * movement has none. A deactivated rule of the same origin is invisible here.
+   */
+  findActiveRuleBySource(
+    unit: TUnitOfWork,
+    query: ActiveRuleBySourceQuery,
+  ): RecurringResult<StoredRecurringRule | null>;
+
+  /**
+   * Replaces an active rule and its template tags, and returns the stored rule.
+   * It writes more than one row, so it requires a transactional unit. The write
+   * is refused with `staleTemplateVersion` when another editor already landed,
+   * and with `alreadyDeactivated` when the rule has stopped generating.
+   */
+  replaceActiveRule(
+    unit: TUnitOfWork,
+    command: ReplaceActiveRuleCommand,
+  ): RecurringResult<RecurringRule>;
+
+  /**
+   * Stops an active rule for good. The stamp is refused with
+   * `alreadyDeactivated` when the rule had already stopped, and with
+   * `staleTemplateVersion` when the caller was looking at an older template.
+   */
+  deactivateRule(
+    unit: TUnitOfWork,
+    command: DeactivateRuleCommand,
   ): RecurringResult<RecurringRule>;
 
   /**

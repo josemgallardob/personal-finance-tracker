@@ -13,6 +13,7 @@
 import { randomUUID } from "node:crypto";
 
 import { createGenerateDueOccurrences } from "../../../src/modules/recurring/application/generate-due-occurrences";
+import { createRecurringLifecycle } from "../../../src/modules/recurring/application/services/recurring-lifecycle";
 import type { DueDateRunner } from "../../../src/modules/recurring/application/ports/due-date-runner";
 import type {
   RecurringRepositoryErrorCode,
@@ -30,9 +31,16 @@ import {
   sqliteDueDateRunner,
 } from "../../../src/modules/recurring/infrastructure/sqlite-unit-of-work";
 import type { Category } from "../../../src/modules/classification/domain/category";
+import { sqliteCategoryRepository } from "../../../src/modules/classification/infrastructure/sqlite-category-repository";
+import { sqliteTagRepository } from "../../../src/modules/classification/infrastructure/sqlite-tag-repository";
 import { sqliteTransactionRepository } from "../../../src/modules/transactions/infrastructure/sqlite-transaction-repository";
 import { FixedClock } from "../../../src/shared/domain/clock";
 import type { LocalDate } from "../../../src/shared/domain/dates";
+import {
+  type DomainResult,
+  domainError,
+  invalid,
+} from "../../../src/shared/domain/errors";
 import { loadAppConfig } from "../../../src/shared/server/config";
 import {
   openSqliteConnection,
@@ -164,7 +172,50 @@ export function createGenerator(
   });
 }
 
-/** Predictable identifiers, so a test can name the row it is looking at. */
+/** Builds the lifecycle services on the real adapters of a connection. */
+export function createLifecycle(
+  connection: SqliteConnection,
+  options: GeneratorOptions,
+) {
+  return createRecurringLifecycle<SqliteUnitOfWork>({
+    rules: sqliteRecurringRuleRepository,
+    occurrences: sqliteRecurringOccurrenceRepository,
+    transactions: sqliteTransactionRepository,
+    categories: sqliteCategoryRepository,
+    tags: sqliteTagRepository,
+    clock: new FixedClock(options.today as LocalDate),
+    createId: options.createId,
+    now: options.now ?? (() => NOW),
+  });
+}
+
+/** Runs domain work inside one SQL transaction and rolls refusals back. */
+export function runDomainTransaction<TValue>(
+  connection: SqliteConnection,
+  work: (unit: SqliteUnitOfWork) => DomainResult<TValue>,
+): DomainResult<TValue> {
+  let refusal: DomainResult<TValue> | undefined;
+  const rollback = new Error("Domain work was rolled back");
+
+  try {
+    return connection.db.transaction((tx) => {
+      const result = work({ isTransactional: true, db: tx });
+
+      if (!result.ok) {
+        refusal = result;
+        throw rollback;
+      }
+
+      return result;
+    });
+  } catch {
+    if (refusal) {
+      return refusal;
+    }
+
+    return invalid([domainError("storage", "unavailable")]);
+  }
+}
 export function sequentialIds(prefix: string): () => string {
   let next = 0;
 
@@ -242,10 +293,28 @@ export function rewindNextDueDate(
     .run(nextDueDate, ruleId);
 }
 
-/** Value of an accepted outcome; fails loudly when it was refused. */
-export function okValue<TValue>(result: RecurringResult<TValue>): TValue {
+/** Value of an accepted domain outcome. */
+export function domainValue<TValue>(result: DomainResult<TValue>): TValue {
   if (!result.ok) {
-    throw new Error(`Expected success: ${JSON.stringify(result.error)}`);
+    throw new Error(`Expected success: ${JSON.stringify(result.errors)}`);
+  }
+
+  return result.value;
+}
+
+/**
+ * Value of any accepted `{ ok, value }` outcome.
+ *
+ * Recurring, transaction and domain results share the success discriminant but
+ * not the refusal payload, so tests unwrap them through this helper instead of
+ * forcing every caller onto RecurringResult.
+ */
+export function okValue<TValue>(
+  result:
+    { readonly ok: true; readonly value: TValue } | { readonly ok: false },
+): TValue {
+  if (!result.ok) {
+    throw new Error(`Expected success: ${JSON.stringify(result)}`);
   }
 
   return result.value;

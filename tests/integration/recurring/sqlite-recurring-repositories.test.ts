@@ -24,6 +24,10 @@ import type {
   RecurringRule,
   RecurringRuleId,
 } from "../../../src/modules/recurring/domain/recurring-rule";
+import {
+  deactivateRecurringRule,
+  editRecurringRule,
+} from "../../../src/modules/recurring/domain/recurring-rule";
 import type { Category } from "../../../src/modules/classification/domain/category";
 import { sqliteTransactionRepository } from "../../../src/modules/transactions/infrastructure/sqlite-transaction-repository";
 import { runInTransaction as runTransactionWrite } from "../../../src/modules/transactions/infrastructure/sqlite-unit-of-work";
@@ -275,6 +279,183 @@ describe("round trip of a stored rule", () => {
         }),
       ),
     ).toBeNull();
+  });
+});
+
+describe("active listing, replacement and deactivation", () => {
+  it("lists only active rules and finds the one of an origin movement", () => {
+    const rent = storeCategory(fixture, "Alquiler", "expense");
+    const salary = storeCategory(fixture, "Sueldo", "income");
+    const origin = saveMovement(rent, TODAY);
+    okValue(
+      saveRule(
+        newRule({
+          id: "rule-expense",
+          sourceTransactionId: origin.id,
+          category: rent,
+          nextDueDate: "2026-10-08",
+        }),
+      ),
+    );
+    okValue(
+      saveRule(
+        newRule({
+          id: "rule-income",
+          category: salary,
+          amountMinor: 250_000,
+          monthlyDay: 1,
+          nextDueDate: "2026-10-01",
+        }),
+      ),
+    );
+    okValue(
+      saveRule(
+        newRule({
+          id: "rule-stopped",
+          category: rent,
+          monthlyDay: 15,
+          nextDueDate: "2026-05-15",
+          deactivatedAt: NOW,
+        }),
+      ),
+    );
+
+    expect(
+      okValue(
+        sqliteRecurringRuleRepository.findActiveRules(unit, { workspaceId }),
+      ).map((row) => row.rule.id),
+    ).toEqual(["rule-expense", "rule-income"]);
+    expect(
+      okValue(
+        sqliteRecurringRuleRepository.findActiveRuleBySource(unit, {
+          workspaceId,
+          sourceTransactionId: origin.id,
+        }),
+      )?.rule.id,
+    ).toBe("rule-expense");
+    expect(
+      okValue(
+        sqliteRecurringRuleRepository.findActiveRuleBySource(unit, {
+          workspaceId,
+          sourceTransactionId: saveMovement(rent, "2026-01-15").id,
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("replaces an active template only while the version still matches", () => {
+    const category = storeCategory(fixture, "Alquiler", "expense");
+    const stored = okValue(
+      saveRule(
+        newRule({
+          id: "rule-1",
+          category,
+          amountMinor: 85_000,
+          concept: "Alquiler",
+          nextDueDate: "2026-10-08",
+        }),
+      ),
+    );
+    const edited = editRecurringRule(stored, {
+      type: "expense",
+      amountMinor: 90_000,
+      category,
+      concept: "Alquiler actualizado",
+      note: null,
+      tagIds: [],
+      monthlyDay: 15,
+      nextDueDate: "2026-09-15",
+      updatedAt: NOW + 1,
+    });
+
+    if (!edited.ok) {
+      throw new Error(`Expected an edited rule: ${JSON.stringify(edited)}`);
+    }
+
+    expect(
+      errorCode(
+        runInTransaction(fixture.connection, (transactional) =>
+          sqliteRecurringRuleRepository.replaceActiveRule(transactional, {
+            workspaceId,
+            expectedTemplateVersion: 99,
+            rule: edited.value,
+          }),
+        ),
+      ),
+    ).toBe("staleTemplateVersion");
+
+    const replaced = okValue(
+      runInTransaction(fixture.connection, (transactional) =>
+        sqliteRecurringRuleRepository.replaceActiveRule(transactional, {
+          workspaceId,
+          expectedTemplateVersion: 1,
+          rule: edited.value,
+        }),
+      ),
+    );
+
+    expect(replaced.template.amountMinor).toBe(90_000);
+    expect(replaced.templateVersion).toBe(2);
+    expect(
+      errorCode(
+        sqliteRecurringRuleRepository.replaceActiveRule(unit, {
+          workspaceId,
+          expectedTemplateVersion: 1,
+          rule: edited.value,
+        }),
+      ),
+    ).toBe("transactionRequired");
+  });
+
+  it("stops an active rule once and refuses a second stop", () => {
+    const category = storeCategory(fixture, "Alquiler", "expense");
+    okValue(
+      saveRule(
+        newRule({
+          id: "rule-1",
+          category,
+          nextDueDate: "2026-10-08",
+        }),
+      ),
+    );
+
+    const stopped = okValue(
+      runInTransaction(fixture.connection, (transactional) =>
+        sqliteRecurringRuleRepository.deactivateRule(transactional, {
+          workspaceId,
+          ruleId: ruleId("rule-1"),
+          expectedTemplateVersion: 1,
+          deactivatedAt: stamp(NOW),
+        }),
+      ),
+    );
+
+    expect(stopped.deactivatedAt).toBe(NOW);
+    expect(
+      errorCode(
+        runInTransaction(fixture.connection, (transactional) =>
+          sqliteRecurringRuleRepository.deactivateRule(transactional, {
+            workspaceId,
+            ruleId: ruleId("rule-1"),
+            expectedTemplateVersion: 1,
+            deactivatedAt: stamp(NOW + 1),
+          }),
+        ),
+      ),
+    ).toBe("alreadyDeactivated");
+    expect(
+      errorCode(
+        runInTransaction(fixture.connection, (transactional) =>
+          sqliteRecurringRuleRepository.deactivateRule(transactional, {
+            workspaceId,
+            ruleId: ruleId("missing-rule"),
+            expectedTemplateVersion: 1,
+            deactivatedAt: stamp(NOW),
+          }),
+        ),
+      ),
+    ).toBe("ruleNotFound");
+    expect(deactivateRecurringRule(stopped, NOW).ok).toBe(false);
   });
 });
 

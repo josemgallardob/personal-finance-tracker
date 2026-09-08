@@ -17,6 +17,7 @@ import {
   INITIAL_TEMPLATE_VERSION,
   createRecurringRule,
   deactivateRecurringRule,
+  editRecurringRule,
   isActiveRecurringRule,
 } from "./recurring-rule";
 
@@ -262,6 +263,75 @@ describe("createRecurringRule", () => {
         nextDueDate: "ayer",
       }).map((error) => error.field),
     ).toEqual(["id", "monthlyDay", "nextDueDate"]);
+  });
+});
+
+describe("editRecurringRule", () => {
+  it("replaces the template of an active rule and increases its version", () => {
+    const edited = editRecurringRule(created(), {
+      type: "expense",
+      amountMinor: 2_499,
+      category: EXPENSE_CATEGORY,
+      concept: "Nueva cuota",
+      note: "A partir del próximo mes",
+      tagIds: ["tag-casa"],
+      monthlyDay: 15,
+      nextDueDate: "2026-09-15",
+      updatedAt: NOW + 1000,
+    });
+
+    expect(edited).toEqual({
+      ok: true,
+      value: {
+        ...created({
+          amountMinor: 2_499,
+          concept: "Nueva cuota",
+          note: "A partir del próximo mes",
+          tagIds: ["tag-casa"],
+          monthlyDay: 15,
+          nextDueDate: "2026-09-15",
+          templateVersion: INITIAL_TEMPLATE_VERSION + 1,
+          updatedAt: NOW + 1000,
+        }),
+      },
+    });
+  });
+
+  it("refuses to edit a rule that is already deactivated", () => {
+    expect(
+      editRecurringRule(created({ deactivatedAt: NOW }), {
+        type: "expense",
+        amountMinor: 2_499,
+        category: EXPENSE_CATEGORY,
+        concept: null,
+        note: null,
+        tagIds: [],
+        monthlyDay: 15,
+        nextDueDate: "2026-09-15",
+        updatedAt: NOW + 1000,
+      }),
+    ).toEqual({
+      ok: false,
+      errors: [{ field: "deactivatedAt", code: "alreadyDeactivated" }],
+    });
+  });
+
+  it("keeps the origin link of the edited rule", () => {
+    const edited = editRecurringRule(created(), {
+      type: "expense",
+      amountMinor: 2_499,
+      category: EXPENSE_CATEGORY,
+      concept: null,
+      note: null,
+      tagIds: [],
+      monthlyDay: 1,
+      nextDueDate: "2026-10-01",
+      updatedAt: NOW + 1000,
+    });
+
+    expect(edited.ok && edited.value.sourceTransactionId).toBe(
+      VALID_INPUT.sourceTransactionId,
+    );
   });
 });
 

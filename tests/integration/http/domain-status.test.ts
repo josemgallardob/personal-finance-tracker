@@ -51,6 +51,7 @@ describe("DOMAIN_ERROR_API_CODE", () => {
     "duplicateName",
     "alreadyArchived",
     "alreadyDeactivated",
+    "activeRuleExists",
     "archived",
   ] as const)("reports %s as a conflict", (code) => {
     expect(statusOf(DOMAIN_ERROR_API_CODE[code])).toBe(409);
