@@ -1,6 +1,6 @@
 # Stack tecnológico
 
-**Estado:** aceptado v1.0
+**Estado:** aceptado v1.1
 
 **Criterio:** entrada rápida, operación privada sencilla y consultas agregadas
 fiables sin sobredimensionar el MVP.
@@ -76,6 +76,10 @@ la ruta del archivo SQLite, URL privada, zona horaria y configuración de backup
   escrituras.
 - No existe API separada, gestor de estado global, cola ni caché distribuida; un
   comando programado basta para el volumen del MVP.
+- Operaciones programa `npm run recurring:run` (por ejemplo con cron diario). El
+  repositorio no instala el temporizador. El mismo comando es el que el arranque
+  de la aplicación ejecuta para recuperar vencimientos omitidos; `next build` no
+  abre SQLite ni lanza el generador.
 - Los filtros compartibles viven en URL; formularios y estado efímero permanecen
   en cliente; los datos financieros y cálculos viven en servidor.
 - Las gráficas nunca sustituyen la tabla o listado que explica una cifra.

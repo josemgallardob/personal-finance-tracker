@@ -2,7 +2,8 @@
  * Tag HTTP endpoints against a real, migrated SQLite file.
  *
  * The handlers run GET/POST collection, PATCH rename and POST archive through
- * the real tag maintenance services. Recurrence protection is out of scope.
+ * the real tag maintenance services. An active recurrence that still copies a
+ * tag is refused with a conflict that identifies that rule.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -20,9 +21,11 @@ import {
   createLogCollector,
   openConnectionFrom,
   readEnvelope,
+  storeCategory,
   storeTag,
   type HttpFixture,
 } from "./helpers";
+import { storeRule } from "../recurring/helpers";
 
 const NOW = 1_746_268_800_000;
 const FOREIGN_ID = "foreign-tag-id";
@@ -266,6 +269,37 @@ describe("POST /api/tags/[id]/archive", () => {
       body: {
         error: {
           details: [{ field: "tagId", code: "alreadyArchived" }],
+        },
+      },
+    });
+  });
+
+  it("conflicts with the active rule that still uses the tag", async () => {
+    const category = storeCategory(fixture, "Suscripciones", "expense");
+    const tag = storeTag(fixture, "Streaming");
+    storeRule(fixture, {
+      id: "rule-netflix",
+      category,
+      tagIds: [tag.id],
+      monthlyDay: 8,
+      nextDueDate: "2026-10-08",
+    });
+
+    const refused = await parse(
+      await createArchiveTagHandler(deps())(
+        jsonRequest("POST", `/api/tags/${tag.id}/archive`, {}),
+      ),
+    );
+
+    expect(refused).toMatchObject({
+      status: 409,
+      body: {
+        error: {
+          code: "conflict",
+          details: [
+            { field: "tagId", code: "usedByActiveRule" },
+            { field: "rule-netflix", code: "usedByActiveRule" },
+          ],
         },
       },
     });

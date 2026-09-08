@@ -6,8 +6,8 @@
  * focused ports and return field errors for every conflict, so a caller never
  * has to treat a duplicate name or an invalid order as an unexpected failure.
  * Category type is taken from the stored row on every later mutation and has
- * no setter. Protection of active recurrences is REC-04; this layer archives
- * without inspecting rules.
+ * no setter. An active recurrence that still copies a category or tag into its
+ * template blocks archive with a conflict that identifies that rule.
  */
 
 import { randomUUID } from "node:crypto";
@@ -36,11 +36,19 @@ import type {
 } from "../ports/classification-repository";
 import type { TagRepository } from "../ports/tag-repository";
 import type { UnitOfWork } from "../ports/unit-of-work";
+import type {
+  RecurringResult,
+  RecurringRuleRepository,
+} from "../../../recurring/application/ports/recurring-repository";
 
 /** Dependencies the maintenance services share. */
 export interface ClassificationMaintenanceDeps<TUnit extends UnitOfWork> {
   readonly categories: CategoryRepository<TUnit>;
   readonly tags: TagRepository<TUnit>;
+  readonly rules?: Pick<
+    RecurringRuleRepository<TUnit>,
+    "findActiveRuleByCategory" | "findActiveRuleByTag"
+  >;
   readonly createId?: () => string;
   readonly now?: () => number;
 }
@@ -158,7 +166,7 @@ export function createClassificationMaintenance<TUnit extends UnitOfWork>(
       return reorderCategoryRecords(unit, deps.categories, command);
     },
     archiveCategory(unit, command) {
-      return archiveCategoryRecord(unit, deps.categories, command, now);
+      return archiveCategoryRecord(unit, deps, command, now);
     },
     createTag(unit, command) {
       return createTagRecord(unit, deps.tags, command, createId);
@@ -167,7 +175,7 @@ export function createClassificationMaintenance<TUnit extends UnitOfWork>(
       return renameTagRecord(unit, deps.tags, command);
     },
     archiveTag(unit, command) {
-      return archiveTagRecord(unit, deps.tags, command, now);
+      return archiveTagRecord(unit, deps, command, now);
     },
     requireAssignableCategory(unit, query) {
       return requireAssignableCategoryRecord(unit, deps.categories, query);
@@ -294,7 +302,7 @@ function reorderCategoryRecords<TUnit extends UnitOfWork>(
 
 function archiveCategoryRecord<TUnit extends UnitOfWork>(
   unit: TUnit,
-  categories: CategoryRepository<TUnit>,
+  deps: ClassificationMaintenanceDeps<TUnit>,
   command: ArchiveCategoryCommand,
   now: () => number,
 ): DomainResult<Category> {
@@ -308,8 +316,26 @@ function archiveCategoryRecord<TUnit extends UnitOfWork>(
     return archivedAt;
   }
 
+  if (deps.rules) {
+    if (!unit.isTransactional) {
+      return invalid([domainError("storage", "unavailable")]);
+    }
+
+    const blocked = refuseIfUsedByActiveRule(
+      deps.rules.findActiveRuleByCategory(unit, {
+        workspaceId: command.workspaceId,
+        categoryId: command.categoryId as CategoryId,
+      }),
+      "categoryId",
+    );
+
+    if (!blocked.ok) {
+      return blocked;
+    }
+  }
+
   return fromRepositoryResult(
-    categories.archiveCategory(unit, {
+    deps.categories.archiveCategory(unit, {
       workspaceId: command.workspaceId,
       categoryId: command.categoryId as CategoryId,
       archivedAt: archivedAt.value,
@@ -387,7 +413,7 @@ function renameTagRecord<TUnit extends UnitOfWork>(
 
 function archiveTagRecord<TUnit extends UnitOfWork>(
   unit: TUnit,
-  tags: TagRepository<TUnit>,
+  deps: ClassificationMaintenanceDeps<TUnit>,
   command: ArchiveTagCommand,
   now: () => number,
 ): DomainResult<Tag> {
@@ -401,8 +427,26 @@ function archiveTagRecord<TUnit extends UnitOfWork>(
     return archivedAt;
   }
 
+  if (deps.rules) {
+    if (!unit.isTransactional) {
+      return invalid([domainError("storage", "unavailable")]);
+    }
+
+    const blocked = refuseIfUsedByActiveRule(
+      deps.rules.findActiveRuleByTag(unit, {
+        workspaceId: command.workspaceId,
+        tagId: command.tagId as TagId,
+      }),
+      "tagId",
+    );
+
+    if (!blocked.ok) {
+      return blocked;
+    }
+  }
+
   return fromRepositoryResult(
-    tags.archiveTag(unit, {
+    deps.tags.archiveTag(unit, {
       workspaceId: command.workspaceId,
       tagId: command.tagId as TagId,
       archivedAt: archivedAt.value,
@@ -483,6 +527,24 @@ function requireAssignableTagRecord<TUnit extends UnitOfWork>(
   }
 
   return valid(existing.value);
+}
+
+function refuseIfUsedByActiveRule(
+  lookup: RecurringResult<{ readonly rule: { readonly id: string } } | null>,
+  classificationField: string,
+): DomainResult<true> {
+  if (!lookup.ok) {
+    return invalid([domainError("storage", "unavailable")]);
+  }
+
+  if (lookup.value === null) {
+    return valid(true);
+  }
+
+  return invalid([
+    domainError(classificationField, "usedByActiveRule"),
+    domainError(lookup.value.rule.id, "usedByActiveRule"),
+  ]);
 }
 
 function fromRepositoryResult<TValue>(

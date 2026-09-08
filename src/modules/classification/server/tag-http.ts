@@ -2,8 +2,8 @@
  * Tag HTTP handlers.
  *
  * GET/POST the collection, PATCH a name and POST archive. There is no order
- * endpoint: tags have no sort of their own. Recurrence protection is REC-04
- * and is not applied here.
+ * endpoint: tags have no sort of their own. Archive inspects active recurrence
+ * templates so a tag still copied by a rule is refused.
  */
 
 import "server-only";
@@ -28,6 +28,7 @@ import {
   fromClassification,
   fromDomain,
   renameTagBodySchema,
+  runDomainInTransaction,
   tagIdFrom,
   tagListQuerySchema,
 } from "./http";
@@ -128,12 +129,11 @@ export function createArchiveTagHandler(deps: ApiHandlerDeps = {}): ApiHandler {
 
         return mapItem(
           fromDomain(
-            classificationMaintenance().archiveTag(
-              autocommit(context.connection),
-              {
+            runDomainInTransaction(context.connection, (unit) =>
+              classificationMaintenance().archiveTag(unit, {
                 workspaceId: context.workspaceId,
                 tagId: tagId.value,
-              },
+              }),
             ),
           ),
         );

@@ -2,7 +2,7 @@
  * POST /api/tags/[id]/archive.
  *
  * Archives a tag so it stays readable in history. There is no unarchive in
- * this MVP, and active recurrences are not inspected here (REC-04).
+ * this MVP. An active recurrence that still uses the tag is refused.
  *
  * Route segment config must be string/number literals: Next.js parses them
  * statically and cannot follow imported constants.

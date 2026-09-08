@@ -145,12 +145,11 @@ export function createArchiveCategoryHandler(
 
         return mapItem(
           fromDomain(
-            classificationMaintenance().archiveCategory(
-              autocommit(context.connection),
-              {
+            runDomainInTransaction(context.connection, (unit) =>
+              classificationMaintenance().archiveCategory(unit, {
                 workspaceId: context.workspaceId,
                 categoryId: categoryId.value,
-              },
+              }),
             ),
           ),
         );
