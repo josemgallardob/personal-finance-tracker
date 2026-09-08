@@ -294,16 +294,16 @@ describe("category maintenance", () => {
 
     const reordered: ClassificationResult<readonly Category[]> =
       runInTransaction(fixture.connection, (transaction) => {
-      const result = maintenance.reorderCategories(transaction, {
-        workspaceId,
-        type: "expense",
-        orderedCategoryIds: [ocio.id, casa.id],
-      });
+        const result = maintenance.reorderCategories(transaction, {
+          workspaceId,
+          type: "expense",
+          orderedCategoryIds: [ocio.id, casa.id],
+        });
 
-      return result.ok
-        ? succeeded(result.value)
-        : failed<readonly Category[]>("invalidCategoryOrder");
-    });
+        return result.ok
+          ? succeeded(result.value)
+          : failed<readonly Category[]>("invalidCategoryOrder");
+      });
 
     expect(reordered.ok).toBe(true);
     if (!reordered.ok) {
