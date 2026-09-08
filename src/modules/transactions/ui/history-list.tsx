@@ -5,8 +5,9 @@
  *
  * Filters live in the URL. Changing them changes the list request identity, so
  * a slower previous page cannot paint over the current one and accumulated
- * pages from another filter set are discarded. Desktop uses a compact table;
- * mobile uses stacked rows of the same fields.
+ * pages from another filter set are discarded. Later cursor pages append
+ * through IntersectionObserver with an accessible Cargar más fallback. Desktop
+ * uses a compact table; mobile uses stacked rows of the same fields.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -36,6 +37,7 @@ import { DuplicateTransactionDialog } from "./duplicate-dialog";
 import { EditTransactionDialog } from "./edit-dialog";
 import { HistoryFilters } from "./history-filters";
 import { historyCopy, HISTORY_LIST_START_ID } from "./history-copy";
+import { HistoryPageSentinel } from "./history-page-sentinel";
 import { loadHistoryCatalogs } from "./history-load";
 import {
   historyCategoryLabel,
@@ -47,6 +49,10 @@ import {
 } from "./history-presentation";
 import { HistoryRowMenu, type HistoryRowAction } from "./history-row-menu";
 import { apiFailureMessage } from "./transaction-dialog-support";
+import {
+  useHistoryPages,
+  type HistoryPagesSnapshot,
+} from "./use-history-pages";
 
 const HISTORY_CATALOGS_KEY = "transactions:history:catalogs";
 const DESKTOP_HISTORY_QUERY = "(min-width: 640px)";
@@ -126,11 +132,15 @@ export function HistoryList({
     load: (signal) => loadHistoryCatalogs(apiClient, signal),
   });
   const listQuery = toTransactionListQuery(applied);
-  const history = useResource({
+  const history = useHistoryPages({
     requestKey: historyQueryRequestKey(applied),
     revision,
     refreshEpoch,
-    load: (signal) => transactionsApi.listTransactions(listQuery, { signal }),
+    loadPage: (cursor, signal) =>
+      transactionsApi.listTransactions(
+        cursor === undefined ? listQuery : { ...listQuery, cursor },
+        { signal },
+      ),
   });
 
   const handleMenuOpenChange = useCallback(
@@ -147,7 +157,7 @@ export function HistoryList({
 
   const categories = catalogs.data?.categories ?? [];
   const tags = catalogs.data?.tags ?? [];
-  const snapshotItems = history.data?.items ?? [];
+  const snapshotItems = history.items;
 
   const body = (() => {
     if (history.status === "loading") {
@@ -207,38 +217,66 @@ export function HistoryList({
       />
       {body}
       {showRows ? (
-        isDesktop ? (
-          <div
-            className="w-full max-w-full min-w-0 overflow-x-auto"
-            data-history-layout="desktop"
-          >
-            <table className="w-full max-w-full min-w-0 border-collapse text-left">
-              <caption className="sr-only">{historyCopy.caption}</caption>
-              <thead>
-                <tr className="border-border text-caption text-text-muted border-b">
-                  <th className="px-3 py-2 font-medium" scope="col">
-                    {historyCopy.conceptColumn}
-                  </th>
-                  <th className="px-3 py-2 font-medium" scope="col">
-                    {historyCopy.categoryColumn}
-                  </th>
-                  <th className="px-3 py-2 font-medium" scope="col">
-                    {historyCopy.dateColumn}
-                  </th>
-                  <th className="px-3 py-2 font-medium" scope="col">
-                    {historyCopy.tagsColumn}
-                  </th>
-                  <th className="px-3 py-2 text-right font-medium" scope="col">
-                    {historyCopy.amountColumn}
-                  </th>
-                  <th className="px-3 py-2 font-medium" scope="col">
-                    {historyCopy.actions}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+        <>
+          {isDesktop ? (
+            <div
+              className="w-full max-w-full min-w-0 overflow-x-auto"
+              data-history-layout="desktop"
+            >
+              <table className="w-full max-w-full min-w-0 border-collapse text-left">
+                <caption className="sr-only">{historyCopy.caption}</caption>
+                <thead>
+                  <tr className="border-border text-caption text-text-muted border-b">
+                    <th className="px-3 py-2 font-medium" scope="col">
+                      {historyCopy.conceptColumn}
+                    </th>
+                    <th className="px-3 py-2 font-medium" scope="col">
+                      {historyCopy.categoryColumn}
+                    </th>
+                    <th className="px-3 py-2 font-medium" scope="col">
+                      {historyCopy.dateColumn}
+                    </th>
+                    <th className="px-3 py-2 font-medium" scope="col">
+                      {historyCopy.tagsColumn}
+                    </th>
+                    <th
+                      className="px-3 py-2 text-right font-medium"
+                      scope="col"
+                    >
+                      {historyCopy.amountColumn}
+                    </th>
+                    <th className="px-3 py-2 font-medium" scope="col">
+                      {historyCopy.actions}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {snapshotItems.map((transaction) => (
+                    <HistoryDesktopRow
+                      key={transaction.id}
+                      categories={categories}
+                      menuOpen={openMenuId === transaction.id}
+                      onAction={(action) => {
+                        openDialog(transaction.id, action);
+                      }}
+                      onMenuOpenChange={(open) => {
+                        handleMenuOpenChange(transaction.id, open);
+                      }}
+                      tags={tags}
+                      transaction={transaction}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div data-history-layout="mobile">
+              <ol
+                aria-label={historyCopy.caption}
+                className="flex w-full max-w-full flex-col gap-3"
+              >
                 {snapshotItems.map((transaction) => (
-                  <HistoryDesktopRow
+                  <HistoryMobileRow
                     key={transaction.id}
                     categories={categories}
                     menuOpen={openMenuId === transaction.id}
@@ -252,33 +290,11 @@ export function HistoryList({
                     transaction={transaction}
                   />
                 ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div data-history-layout="mobile">
-            <ol
-              aria-label={historyCopy.caption}
-              className="flex w-full max-w-full flex-col gap-3"
-            >
-              {snapshotItems.map((transaction) => (
-                <HistoryMobileRow
-                  key={transaction.id}
-                  categories={categories}
-                  menuOpen={openMenuId === transaction.id}
-                  onAction={(action) => {
-                    openDialog(transaction.id, action);
-                  }}
-                  onMenuOpenChange={(open) => {
-                    handleMenuOpenChange(transaction.id, open);
-                  }}
-                  tags={tags}
-                  transaction={transaction}
-                />
-              ))}
-            </ol>
-          </div>
-        )
+              </ol>
+            </div>
+          )}
+          <HistoryPagesFooter pages={history} />
+        </>
       ) : null}
       <EditTransactionDialog
         client={apiClient}
@@ -310,6 +326,60 @@ export function HistoryList({
         open={dialogOpen && dialog?.mode === "delete"}
         transactionId={dialog?.mode === "delete" ? dialogId : null}
       />
+    </div>
+  );
+}
+
+function HistoryPagesFooter({
+  pages,
+}: {
+  readonly pages: HistoryPagesSnapshot;
+}) {
+  return (
+    <div className="flex w-full max-w-full min-w-0 flex-col items-start gap-3">
+      {pages.isLoadingMore ? (
+        <LoadingState label={historyCopy.loadingMore} />
+      ) : null}
+      {pages.pageError ? (
+        <div
+          role="alert"
+          className="border-danger bg-surface-raised flex w-full max-w-full flex-col items-start gap-3 rounded-lg border p-4 sm:p-6"
+        >
+          <p className="text-body text-text font-medium">
+            {historyCopy.pageErrorTitle}
+          </p>
+          <p className="text-body-sm text-text-muted max-w-xl">
+            {apiFailureMessage(pages.pageError, historyCopy.errorHint)}
+          </p>
+          <Button
+            aria-label={historyCopy.retry}
+            onClick={pages.retryPage}
+            variant="secondary"
+          >
+            {historyCopy.retry}
+          </Button>
+        </div>
+      ) : null}
+      {pages.hasMore && !pages.isLoadingMore ? (
+        <Button onClick={pages.loadMore} variant="secondary">
+          {historyCopy.loadMore}
+        </Button>
+      ) : null}
+      {pages.endReached ? (
+        <p
+          aria-label={historyCopy.endOfList}
+          className="text-body-sm text-text-muted"
+          role="status"
+        >
+          {historyCopy.endOfList}
+        </p>
+      ) : null}
+      {pages.hasMore ? (
+        <HistoryPageSentinel
+          enabled={pages.hasMore}
+          onIntersect={pages.loadMore}
+        />
+      ) : null}
     </div>
   );
 }

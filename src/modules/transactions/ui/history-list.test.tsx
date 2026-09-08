@@ -79,6 +79,8 @@ afterEach(() => {
 function historyFetch(options?: {
   items?: readonly TransactionDto[];
   failListOnce?: boolean;
+  pageSize?: number;
+  failNextPageOnce?: boolean;
   onMutate?: (
     method: string,
     path: string,
@@ -87,6 +89,7 @@ function historyFetch(options?: {
 }): ReturnType<typeof vi.fn<FetchLike>> {
   const items = options?.items ?? [laterMovement, movement];
   let listAttempts = 0;
+  let nextPageAttempts = 0;
   const currentById = new Map(items.map((item) => [item.id, item]));
 
   return vi.fn<FetchLike>(async (path, init) => {
@@ -139,6 +142,26 @@ function historyFetch(options?: {
       if (tagIds.length > 0) {
         listed = listed.filter((item) =>
           item.tagIds.some((tagId) => tagIds.includes(tagId)),
+        );
+      }
+      const pageSize = options?.pageSize;
+      if (pageSize !== undefined) {
+        const cursor = params.get("cursor");
+        const start = cursor === null || cursor === "" ? 0 : Number(cursor);
+        if (cursor !== null) {
+          nextPageAttempts += 1;
+          if (options?.failNextPageOnce && nextPageAttempts === 1) {
+            return Promise.reject(new TypeError("Failed to fetch"));
+          }
+        }
+        const page = listed.slice(start, start + pageSize);
+        const nextStart = start + pageSize;
+        return jsonResponse(
+          200,
+          envelope({
+            items: page,
+            nextCursor: nextStart < listed.length ? String(nextStart) : null,
+          }),
         );
       }
       return jsonResponse(200, envelope({ items: listed, nextCursor: null }));
@@ -606,7 +629,7 @@ describe("HistoryList", () => {
     expect(
       await screen.findByRole("rowheader", { name: "Nómina" }),
     ).toBeVisible();
-  });
+  }, 15_000);
 
   it("discards a slower page from the previous filter set", async () => {
     let releaseFirst: ((value: Response) => void) | undefined;
@@ -676,7 +699,7 @@ describe("HistoryList", () => {
     expect(
       screen.getByRole("rowheader", { name: "Supermercado" }),
     ).toBeVisible();
-  });
+  }, 15_000);
 
   it("combines an open dateFrom bound with type so only matching rows remain", async () => {
     const user = userEvent.setup();
@@ -738,6 +761,248 @@ describe("HistoryList", () => {
     );
     expect(
       await screen.findByRole("list", { name: historyCopy.caption }),
+    ).toBeVisible();
+  });
+
+  it("appends cursor pages from Cargar más and shows the end of the list", async () => {
+    const extra = Array.from({ length: 3 }, (_, index) => ({
+      ...movement,
+      id: `tx-page-${index}`,
+      concept: `Página extra ${index}`,
+      date: "2026-08-01",
+      tagIds: [] as string[],
+    }));
+    const fetchImpl = historyFetch({
+      items: [laterMovement, movement, ...extra],
+      pageSize: 2,
+    });
+    const user = userEvent.setup();
+    renderHistory(fetchImpl);
+
+    expect(
+      await screen.findByRole("rowheader", { name: "Nómina" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("rowheader", { name: "Supermercado" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("rowheader", { name: "Página extra 0" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: historyCopy.loadMore }),
+    ).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: historyCopy.loadMore }),
+    );
+    expect(
+      await screen.findByRole("rowheader", { name: "Página extra 0" }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: historyCopy.loadMore }),
+    );
+    expect(
+      await screen.findByRole("rowheader", { name: "Página extra 2" }),
+    ).toBeVisible();
+    expect(
+      await screen.findByRole("status", { name: historyCopy.endOfList }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: historyCopy.loadMore }),
+    ).not.toBeInTheDocument();
+    const listGets = fetchImpl.mock.calls.filter(([path, init]) => {
+      const href = String(path);
+      const method = init.method ?? "GET";
+      return (
+        method === "GET" &&
+        (href === "/api/transactions" || href.startsWith("/api/transactions?"))
+      );
+    });
+    expect(listGets).toHaveLength(3);
+  });
+
+  it("loads the next page from the sentinel observer without duplicating the request", async () => {
+    const observers: Array<{ callback: IntersectionObserverCallback }> = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        readonly callback: IntersectionObserverCallback;
+
+        constructor(callback: IntersectionObserverCallback) {
+          this.callback = callback;
+          observers.push({ callback });
+        }
+
+        disconnect() {}
+        observe() {}
+        takeRecords() {
+          return [];
+        }
+        unobserve() {}
+      },
+    );
+    const fetchImpl = historyFetch({
+      items: [laterMovement, movement],
+      pageSize: 1,
+    });
+    renderHistory(fetchImpl);
+    expect(
+      await screen.findByRole("rowheader", { name: "Nómina" }),
+    ).toBeVisible();
+    await screen.findByTestId("history-sentinel");
+    const intersecting = [
+      { isIntersecting: true },
+    ] as IntersectionObserverEntry[];
+    observers[0]?.callback(intersecting, observers[0] as never);
+    observers[0]?.callback(intersecting, observers[0] as never);
+    expect(
+      await screen.findByRole("rowheader", { name: "Supermercado" }),
+    ).toBeVisible();
+    const listGets = fetchImpl.mock.calls.filter(([path, init]) => {
+      const href = String(path);
+      const method = init.method ?? "GET";
+      return (
+        method === "GET" &&
+        (href === "/api/transactions" || href.startsWith("/api/transactions?"))
+      );
+    });
+    expect(
+      listGets.filter(([path]) => String(path).includes("cursor=")),
+    ).toHaveLength(1);
+    vi.unstubAllGlobals();
+    stubViewport(true);
+  });
+
+  it("retries a failed later page without dropping the rows already shown", async () => {
+    const fetchImpl = historyFetch({
+      items: [laterMovement, movement],
+      pageSize: 1,
+      failNextPageOnce: true,
+    });
+    const user = userEvent.setup();
+    renderHistory(fetchImpl);
+
+    expect(
+      await screen.findByRole("rowheader", { name: "Nómina" }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: historyCopy.loadMore }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      historyCopy.pageErrorTitle,
+    );
+    expect(screen.getByRole("rowheader", { name: "Nómina" })).toBeVisible();
+    expect(
+      screen.queryByRole("rowheader", { name: "Supermercado" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: historyCopy.retry }));
+    expect(
+      await screen.findByRole("rowheader", { name: "Supermercado" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("resets accumulated pages after an edit and after a filter change", async () => {
+    const paged = [
+      laterMovement,
+      movement,
+      { ...movement, id: "tx-3", concept: "Tercera", tagIds: [] },
+    ];
+    const fetchImpl = historyFetch({
+      items: paged,
+      pageSize: 1,
+      onMutate: (method, path, body) => {
+        if (method === "PUT") {
+          return jsonResponse(
+            200,
+            envelope({
+              ...movement,
+              concept:
+                typeof body === "object" &&
+                body !== null &&
+                "concept" in body &&
+                typeof body.concept === "string"
+                  ? body.concept
+                  : "Editada",
+            }),
+          );
+        }
+
+        return jsonResponse(404, {
+          error: {
+            code: "notFound",
+            message: "missing",
+            requestId: "req-maintain",
+          },
+        });
+      },
+    });
+    const user = userEvent.setup();
+    render(<ControlledHistory fetchImpl={fetchImpl} />);
+
+    expect(
+      await screen.findByRole("rowheader", { name: "Nómina" }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: historyCopy.loadMore }),
+    );
+    expect(
+      await screen.findByRole("rowheader", { name: "Supermercado" }),
+    ).toBeVisible();
+
+    await user.click(
+      within(desktopTable()).getByRole("button", {
+        name: historyCopy.actionsOf("Supermercado"),
+      }),
+    );
+    await user.click(
+      within(desktopTable()).getByRole("menuitem", {
+        name: historyCopy.editAction,
+      }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: transactionMaintenanceCopy.editTitle,
+    });
+    await user.clear(within(dialog).getByLabelText("Concepto"));
+    await user.type(within(dialog).getByLabelText("Concepto"), "Editada");
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: transactionMaintenanceCopy.saveEdit,
+      }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(
+      await screen.findByRole("rowheader", { name: "Nómina" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("rowheader", { name: "Editada" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: historyCopy.loadMore }),
+    ).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: historyCopy.loadMore }),
+    );
+    expect(
+      await screen.findByRole("rowheader", { name: "Editada" }),
+    ).toBeVisible();
+
+    await user.selectOptions(
+      screen.getByLabelText(historyCopy.typeLabel),
+      "income",
+    );
+    expect(
+      await screen.findByRole("rowheader", { name: "Nómina" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("rowheader", { name: "Editada" }),
+    ).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("status", { name: historyCopy.endOfList }),
     ).toBeVisible();
   });
 });

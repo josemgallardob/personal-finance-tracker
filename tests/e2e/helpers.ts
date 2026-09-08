@@ -1,5 +1,7 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
+import { e2eOrigin } from "./origin";
+
 export const expenseCategory = "Alquiler";
 export const incomeCategory = "Sueldo";
 
@@ -58,6 +60,57 @@ export async function goToHistory(page: Page): Promise<void> {
   await expect(
     page.getByRole("heading", { name: "Movimientos", level: 1 }),
   ).toBeVisible();
+}
+
+interface CategoryListEnvelope {
+  data: Array<{ id: string; name: string; type: "expense" | "income" }>;
+}
+
+interface PreferencesEnvelope {
+  data: { today: string };
+}
+
+/** Seeds same-date expenses so the history must walk more than one cursor page. */
+export async function seedTiedHistoryExpenses(
+  request: APIRequestContext,
+  options: { conceptPrefix: string; count: number },
+): Promise<string> {
+  const [categoriesResponse, preferencesResponse] = await Promise.all([
+    request.get("/api/categories"),
+    request.get("/api/preferences"),
+  ]);
+  expect(categoriesResponse.ok()).toBe(true);
+  expect(preferencesResponse.ok()).toBe(true);
+  const categories = (await categoriesResponse.json()) as CategoryListEnvelope;
+  const preferences = (await preferencesResponse.json()) as PreferencesEnvelope;
+  const category = categories.data.find(
+    (item) => item.name === expenseCategory && item.type === "expense",
+  );
+  expect(category).toEqual(expect.objectContaining({ id: expect.any(String) }));
+  const date = preferences.data.today;
+
+  for (let index = 0; index < options.count; index += 1) {
+    const response = await request.post("/api/transactions", {
+      headers: {
+        "content-type": "application/json",
+        origin: e2eOrigin(),
+      },
+      data: {
+        type: "expense",
+        amountMinor: 100 + index,
+        date,
+        categoryId: category?.id,
+        concept: `${options.conceptPrefix} ${String(index).padStart(2, "0")}`,
+      },
+    });
+    if (!response.ok()) {
+      throw new Error(
+        `seeded expense ${index} failed: ${response.status()} ${await response.text()}`,
+      );
+    }
+  }
+
+  return date;
 }
 
 export async function openHistoryActions(
