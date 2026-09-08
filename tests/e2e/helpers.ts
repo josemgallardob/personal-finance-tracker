@@ -49,3 +49,18 @@ export async function fillRequiredFields(
     await page.getByLabel("Concepto").fill(options.concept);
   }
 }
+
+export async function goToHistory(page: Page): Promise<void> {
+  await page.goto("/transactions?tab=all");
+  await expect(
+    page.getByRole("heading", { name: "Movimientos", level: 1 }),
+  ).toBeVisible();
+}
+
+export async function openHistoryActions(
+  page: Page,
+  label: string,
+): Promise<void> {
+  await page.getByRole("button", { name: `Acciones de ${label}` }).click();
+  await expect(page.getByRole("menu")).toBeVisible();
+}

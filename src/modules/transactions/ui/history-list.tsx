@@ -1,0 +1,400 @@
+"use client";
+
+/**
+ * Unfiltered Todos history of movements.
+ *
+ * The view loads the first documented page and paints it in the order the API
+ * returned. Desktop uses a compact table; mobile uses stacked rows of the same
+ * fields. Each row opens the existing edit, duplicate and delete dialogs with
+ * that movement's identifier. Successful mutations already bump the shell
+ * revision, so this list reloads without a dedicated cache.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { CategoryIcon } from "../../classification/ui/category-icon";
+import {
+  createApiClient,
+  type ApiClient,
+} from "../../../shared/client/api-client";
+import { useFinancialDataRevision } from "../../../shared/client/financial-data-provider";
+import { useResource } from "../../../shared/client/use-resource";
+import { Button } from "../../../shared/ui/button";
+import { EmptyState, emptyStateCopy } from "../../../shared/ui/empty-state";
+import { LoadingState } from "../../../shared/ui/loading-state";
+import { cx } from "../../../shared/ui/class-names";
+import type { TransactionDto } from "../contracts/transaction";
+import { DeleteTransactionDialog } from "./delete-dialog";
+import { DuplicateTransactionDialog } from "./duplicate-dialog";
+import { EditTransactionDialog } from "./edit-dialog";
+import { historyCopy } from "./history-copy";
+import { loadHistorySnapshot } from "./history-load";
+import {
+  historyCategoryLabel,
+  historyDateLabel,
+  historyPrimaryLabel,
+  historySignedAmount,
+  historyTagNames,
+  historyTypeLabel,
+} from "./history-presentation";
+import { HistoryRowMenu, type HistoryRowAction } from "./history-row-menu";
+import { apiFailureMessage } from "./transaction-dialog-support";
+
+const HISTORY_REQUEST_KEY = "transactions:history:all";
+const DESKTOP_HISTORY_QUERY = "(min-width: 640px)";
+
+/** True from the `sm` breakpoint, where the compact table replaces stacked rows. */
+export function useDesktopHistoryLayout(): boolean {
+  const [isDesktop, setIsDesktop] = useState(() => readDesktopHistoryLayout());
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const media = window.matchMedia(DESKTOP_HISTORY_QUERY);
+    const sync = () => {
+      setIsDesktop(media.matches);
+    };
+
+    sync();
+    media.addEventListener("change", sync);
+    return () => {
+      media.removeEventListener("change", sync);
+    };
+  }, []);
+
+  return isDesktop;
+}
+
+function readDesktopHistoryLayout(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia(DESKTOP_HISTORY_QUERY).matches
+  );
+}
+
+export interface HistoryListProps {
+  /**
+   * Browser transport. The default talks to the current origin; tests inject
+   * the same client over a replaced `fetch`.
+   */
+  readonly client?: ApiClient;
+}
+
+type HistoryDialogMode = HistoryRowAction;
+
+interface HistoryDialogState {
+  readonly mode: HistoryDialogMode;
+  readonly transactionId: string;
+}
+
+/** Renders the Todos history from the real movement and classification APIs. */
+export function HistoryList({ client }: HistoryListProps = {}) {
+  const apiClient = useMemo(() => client ?? createApiClient(), [client]);
+  const { revision, refreshEpoch } = useFinancialDataRevision();
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<HistoryDialogState | null>(null);
+  const isDesktop = useDesktopHistoryLayout();
+  const history = useResource({
+    requestKey: HISTORY_REQUEST_KEY,
+    revision,
+    refreshEpoch,
+    load: (signal) => loadHistorySnapshot(apiClient, signal),
+  });
+
+  const handleMenuOpenChange = useCallback(
+    (transactionId: string, open: boolean) => {
+      setOpenMenuId(open ? transactionId : null);
+    },
+    [],
+  );
+
+  function openDialog(transactionId: string, mode: HistoryDialogMode) {
+    setOpenMenuId(null);
+    setDialog({ mode, transactionId });
+  }
+
+  if (history.status === "loading") {
+    return <LoadingState label={historyCopy.loading} />;
+  }
+
+  if (history.status === "error") {
+    return (
+      <div
+        role="alert"
+        className="border-danger bg-surface-raised flex w-full max-w-full flex-col items-start gap-3 rounded-lg border p-4 sm:p-6"
+      >
+        <p className="text-body text-text font-medium">
+          {historyCopy.errorTitle}
+        </p>
+        <p className="text-body-sm text-text-muted max-w-xl">
+          {history.error
+            ? apiFailureMessage(history.error, historyCopy.errorHint)
+            : historyCopy.errorHint}
+        </p>
+        <Button
+          aria-label={historyCopy.retry}
+          onClick={history.refetch}
+          variant="secondary"
+        >
+          {historyCopy.retry}
+        </Button>
+      </div>
+    );
+  }
+
+  const snapshot = history.data;
+  if (snapshot === undefined || snapshot.items.length === 0) {
+    return (
+      <EmptyState
+        description={emptyStateCopy.noTransactions.description}
+        title={emptyStateCopy.noTransactions.title}
+      />
+    );
+  }
+
+  const dialogOpen = dialog !== null;
+  const dialogId = dialog?.transactionId ?? null;
+
+  return (
+    <div className="flex w-full max-w-full min-w-0 flex-col gap-4">
+      {isDesktop ? (
+        <div
+          className="w-full max-w-full min-w-0 overflow-x-auto"
+          data-history-layout="desktop"
+        >
+          <table className="w-full max-w-full min-w-0 border-collapse text-left">
+            <caption className="sr-only">{historyCopy.caption}</caption>
+            <thead>
+              <tr className="border-border text-caption text-text-muted border-b">
+                <th className="px-3 py-2 font-medium" scope="col">
+                  {historyCopy.conceptColumn}
+                </th>
+                <th className="px-3 py-2 font-medium" scope="col">
+                  {historyCopy.categoryColumn}
+                </th>
+                <th className="px-3 py-2 font-medium" scope="col">
+                  {historyCopy.dateColumn}
+                </th>
+                <th className="px-3 py-2 font-medium" scope="col">
+                  {historyCopy.tagsColumn}
+                </th>
+                <th className="px-3 py-2 text-right font-medium" scope="col">
+                  {historyCopy.amountColumn}
+                </th>
+                <th className="px-3 py-2 font-medium" scope="col">
+                  {historyCopy.actions}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {snapshot.items.map((transaction) => (
+                <HistoryDesktopRow
+                  key={transaction.id}
+                  categories={snapshot.categories}
+                  menuOpen={openMenuId === transaction.id}
+                  onAction={(action) => {
+                    openDialog(transaction.id, action);
+                  }}
+                  onMenuOpenChange={(open) => {
+                    handleMenuOpenChange(transaction.id, open);
+                  }}
+                  tags={snapshot.tags}
+                  transaction={transaction}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div data-history-layout="mobile">
+          <ol
+            aria-label={historyCopy.caption}
+            className="flex w-full max-w-full flex-col gap-3"
+          >
+            {snapshot.items.map((transaction) => (
+              <HistoryMobileRow
+                key={transaction.id}
+                categories={snapshot.categories}
+                menuOpen={openMenuId === transaction.id}
+                onAction={(action) => {
+                  openDialog(transaction.id, action);
+                }}
+                onMenuOpenChange={(open) => {
+                  handleMenuOpenChange(transaction.id, open);
+                }}
+                tags={snapshot.tags}
+                transaction={transaction}
+              />
+            ))}
+          </ol>
+        </div>
+      )}
+      <EditTransactionDialog
+        client={apiClient}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDialog(null);
+          }
+        }}
+        open={dialogOpen && dialog?.mode === "edit"}
+        transactionId={dialog?.mode === "edit" ? dialogId : null}
+      />
+      <DuplicateTransactionDialog
+        client={apiClient}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDialog(null);
+          }
+        }}
+        open={dialogOpen && dialog?.mode === "duplicate"}
+        transactionId={dialog?.mode === "duplicate" ? dialogId : null}
+      />
+      <DeleteTransactionDialog
+        client={apiClient}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDialog(null);
+          }
+        }}
+        open={dialogOpen && dialog?.mode === "delete"}
+        transactionId={dialog?.mode === "delete" ? dialogId : null}
+      />
+    </div>
+  );
+}
+
+function HistoryDesktopRow({
+  categories,
+  menuOpen,
+  onAction,
+  onMenuOpenChange,
+  tags,
+  transaction,
+}: HistoryRowViewProps) {
+  const primary = historyPrimaryLabel(transaction, categories);
+  const category = historyCategoryLabel(transaction, categories);
+  const tagNames = historyTagNames(transaction, tags);
+
+  return (
+    <tr className="border-border border-b last:border-b-0">
+      <th className="text-body-sm text-text px-3 py-3 font-medium" scope="row">
+        <span className="flex min-w-0 items-center gap-3">
+          <CategoryIcon categoryId={transaction.categoryId} />
+          <span className="min-w-0 break-words">{primary}</span>
+        </span>
+      </th>
+      <td className="text-body-sm text-text-muted px-3 py-3">{category}</td>
+      <td className="text-body-sm text-text-muted px-3 py-3 tabular-nums">
+        {historyDateLabel(transaction)}
+      </td>
+      <td className="px-3 py-3">
+        <TagList names={tagNames} />
+      </td>
+      <td className="px-3 py-3 text-right">
+        <SignedAmount transaction={transaction} />
+      </td>
+      <td className="px-3 py-3">
+        <HistoryRowMenu
+          label={primary}
+          onAction={onAction}
+          onOpenChange={onMenuOpenChange}
+          open={menuOpen}
+        />
+      </td>
+    </tr>
+  );
+}
+
+function HistoryMobileRow({
+  categories,
+  menuOpen,
+  onAction,
+  onMenuOpenChange,
+  tags,
+  transaction,
+}: HistoryRowViewProps) {
+  const primary = historyPrimaryLabel(transaction, categories);
+  const category = historyCategoryLabel(transaction, categories);
+  const tagNames = historyTagNames(transaction, tags);
+
+  return (
+    <li className="border-border bg-surface-raised flex w-full max-w-full min-w-0 flex-col gap-2 rounded-lg border px-4 py-3">
+      <div className="flex w-full max-w-full min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <CategoryIcon categoryId={transaction.categoryId} />
+          <div className="min-w-0">
+            <p className="text-body text-text font-medium break-words">
+              {primary}
+            </p>
+            <p className="text-body-sm text-text-muted">{category}</p>
+          </div>
+        </div>
+        <HistoryRowMenu
+          label={primary}
+          onAction={onAction}
+          onOpenChange={onMenuOpenChange}
+          open={menuOpen}
+        />
+      </div>
+      <div className="flex w-full max-w-full min-w-0 flex-wrap items-center justify-between gap-2">
+        <p className="text-body-sm text-text-muted tabular-nums">
+          {historyDateLabel(transaction)}
+        </p>
+        <SignedAmount transaction={transaction} />
+      </div>
+      <TagList names={tagNames} />
+    </li>
+  );
+}
+
+interface HistoryRowViewProps {
+  readonly categories: HistorySnapshotCategories;
+  readonly menuOpen: boolean;
+  readonly onAction: (action: HistoryRowAction) => void;
+  readonly onMenuOpenChange: (open: boolean) => void;
+  readonly tags: HistorySnapshotTags;
+  readonly transaction: TransactionDto;
+}
+
+type HistorySnapshotCategories = Parameters<typeof historyCategoryLabel>[1];
+type HistorySnapshotTags = Parameters<typeof historyTagNames>[1];
+
+function TagList({ names }: { readonly names: readonly string[] }) {
+  if (names.length === 0) {
+    return <p className="text-caption text-text-muted">{historyCopy.noTags}</p>;
+  }
+
+  return (
+    <ul className="flex max-w-full flex-wrap gap-1">
+      {names.map((name) => (
+        <li
+          key={name}
+          className="border-border text-caption text-text rounded-full border px-2 py-0.5"
+        >
+          {name}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SignedAmount({
+  transaction,
+}: {
+  readonly transaction: TransactionDto;
+}) {
+  return (
+    <p
+      className={cx(
+        "text-body-sm font-semibold tabular-nums",
+        transaction.type === "expense" ? "text-expense" : "text-income",
+      )}
+    >
+      <span className="sr-only">{historyTypeLabel(transaction)} </span>
+      {historySignedAmount(transaction)}
+    </p>
+  );
+}
