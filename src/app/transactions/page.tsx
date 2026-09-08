@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { HistoryList } from "../../modules/transactions/ui/history-list";
 import {
   HistoryTabs,
@@ -8,6 +10,7 @@ import {
   historyCopy,
   readHistoryTab,
 } from "../../modules/transactions/ui/history-copy";
+import { LoadingState } from "../../shared/ui/loading-state";
 
 interface TransactionsPageProps {
   readonly searchParams: Promise<{
@@ -37,12 +40,14 @@ export default async function TransactionsPage({
           {historyCopy.description}
         </p>
       </header>
-      <HistoryTabs activeTab={tab} />
-      {tab === HISTORY_ALL_TAB ? (
-        <HistoryList />
-      ) : (
-        <RecurringHistoryPlaceholder />
-      )}
+      <Suspense fallback={<LoadingState label={historyCopy.loading} />}>
+        <HistoryTabs activeTab={tab} />
+        {tab === HISTORY_ALL_TAB ? (
+          <HistoryList />
+        ) : (
+          <RecurringHistoryPlaceholder />
+        )}
+      </Suspense>
     </section>
   );
 }

@@ -17,6 +17,12 @@ import TransactionsPage from "./page";
 
 const REQUEST_ID = "req-transactions-page";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/transactions",
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams("tab=all"),
+}));
+
 vi.mock("next/link", () => ({
   default: function MockLink({
     children,

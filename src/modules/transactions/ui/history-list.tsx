@@ -1,13 +1,12 @@
 "use client";
 
 /**
- * Unfiltered Todos history of movements.
+ * Todos history of movements.
  *
- * The view loads the first documented page and paints it in the order the API
- * returned. Desktop uses a compact table; mobile uses stacked rows of the same
- * fields. Each row opens the existing edit, duplicate and delete dialogs with
- * that movement's identifier. Successful mutations already bump the shell
- * revision, so this list reloads without a dedicated cache.
+ * Filters live in the URL. Changing them changes the list request identity, so
+ * a slower previous page cannot paint over the current one and accumulated
+ * pages from another filter set are discarded. Desktop uses a compact table;
+ * mobile uses stacked rows of the same fields.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -23,12 +22,21 @@ import { Button } from "../../../shared/ui/button";
 import { EmptyState, emptyStateCopy } from "../../../shared/ui/empty-state";
 import { LoadingState } from "../../../shared/ui/loading-state";
 import { cx } from "../../../shared/ui/class-names";
+import { createTransactionsApi } from "../client/transactions-api";
+import {
+  historyQueryRequestKey,
+  isHistoryQueryEmpty,
+  toTransactionListQuery,
+  type HistoryQueryState,
+} from "../client/history-query-state";
+import { useHistoryQueryState } from "../client/use-history-query-state";
 import type { TransactionDto } from "../contracts/transaction";
 import { DeleteTransactionDialog } from "./delete-dialog";
 import { DuplicateTransactionDialog } from "./duplicate-dialog";
 import { EditTransactionDialog } from "./edit-dialog";
+import { HistoryFilters } from "./history-filters";
 import { historyCopy } from "./history-copy";
-import { loadHistorySnapshot } from "./history-load";
+import { loadHistoryCatalogs } from "./history-load";
 import {
   historyCategoryLabel,
   historyDateLabel,
@@ -40,7 +48,7 @@ import {
 import { HistoryRowMenu, type HistoryRowAction } from "./history-row-menu";
 import { apiFailureMessage } from "./transaction-dialog-support";
 
-const HISTORY_REQUEST_KEY = "transactions:history:all";
+const HISTORY_CATALOGS_KEY = "transactions:history:catalogs";
 const DESKTOP_HISTORY_QUERY = "(min-width: 640px)";
 
 /** True from the `sm` breakpoint, where the compact table replaces stacked rows. */
@@ -81,6 +89,9 @@ export interface HistoryListProps {
    * the same client over a replaced `fetch`.
    */
   readonly client?: ApiClient;
+  /** Applied filters. Omitted in production; the URL hook supplies them. */
+  readonly queryState?: HistoryQueryState;
+  readonly onQueryStateChange?: (next: HistoryQueryState) => void;
 }
 
 type HistoryDialogMode = HistoryRowAction;
@@ -91,17 +102,35 @@ interface HistoryDialogState {
 }
 
 /** Renders the Todos history from the real movement and classification APIs. */
-export function HistoryList({ client }: HistoryListProps = {}) {
+export function HistoryList({
+  client,
+  onQueryStateChange,
+  queryState,
+}: HistoryListProps = {}) {
   const apiClient = useMemo(() => client ?? createApiClient(), [client]);
+  const transactionsApi = useMemo(
+    () => createTransactionsApi(apiClient),
+    [apiClient],
+  );
+  const fromUrl = useHistoryQueryState();
+  const applied = queryState ?? fromUrl.state;
+  const setApplied = onQueryStateChange ?? fromUrl.setState;
   const { revision, refreshEpoch } = useFinancialDataRevision();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<HistoryDialogState | null>(null);
   const isDesktop = useDesktopHistoryLayout();
-  const history = useResource({
-    requestKey: HISTORY_REQUEST_KEY,
+  const catalogs = useResource({
+    requestKey: HISTORY_CATALOGS_KEY,
     revision,
     refreshEpoch,
-    load: (signal) => loadHistorySnapshot(apiClient, signal),
+    load: (signal) => loadHistoryCatalogs(apiClient, signal),
+  });
+  const listQuery = toTransactionListQuery(applied);
+  const history = useResource({
+    requestKey: historyQueryRequestKey(applied),
+    revision,
+    refreshEpoch,
+    load: (signal) => transactionsApi.listTransactions(listQuery, { signal }),
   });
 
   const handleMenuOpenChange = useCallback(
@@ -116,84 +145,122 @@ export function HistoryList({ client }: HistoryListProps = {}) {
     setDialog({ mode, transactionId });
   }
 
-  if (history.status === "loading") {
-    return <LoadingState label={historyCopy.loading} />;
-  }
+  const categories = catalogs.data?.categories ?? [];
+  const tags = catalogs.data?.tags ?? [];
+  const snapshotItems = history.data?.items ?? [];
 
-  if (history.status === "error") {
-    return (
-      <div
-        role="alert"
-        className="border-danger bg-surface-raised flex w-full max-w-full flex-col items-start gap-3 rounded-lg border p-4 sm:p-6"
-      >
-        <p className="text-body text-text font-medium">
-          {historyCopy.errorTitle}
-        </p>
-        <p className="text-body-sm text-text-muted max-w-xl">
-          {history.error
-            ? apiFailureMessage(history.error, historyCopy.errorHint)
-            : historyCopy.errorHint}
-        </p>
-        <Button
-          aria-label={historyCopy.retry}
-          onClick={history.refetch}
-          variant="secondary"
+  const body = (() => {
+    if (history.status === "loading") {
+      return <LoadingState label={historyCopy.loading} />;
+    }
+
+    if (history.status === "error") {
+      return (
+        <div
+          role="alert"
+          className="border-danger bg-surface-raised flex w-full max-w-full flex-col items-start gap-3 rounded-lg border p-4 sm:p-6"
         >
-          {historyCopy.retry}
-        </Button>
-      </div>
-    );
-  }
+          <p className="text-body text-text font-medium">
+            {historyCopy.errorTitle}
+          </p>
+          <p className="text-body-sm text-text-muted max-w-xl">
+            {history.error
+              ? apiFailureMessage(history.error, historyCopy.errorHint)
+              : historyCopy.errorHint}
+          </p>
+          <Button
+            aria-label={historyCopy.retry}
+            onClick={history.refetch}
+            variant="secondary"
+          >
+            {historyCopy.retry}
+          </Button>
+        </div>
+      );
+    }
 
-  const snapshot = history.data;
-  if (snapshot === undefined || snapshot.items.length === 0) {
-    return (
-      <EmptyState
-        description={emptyStateCopy.noTransactions.description}
-        title={emptyStateCopy.noTransactions.title}
-      />
-    );
-  }
+    if (snapshotItems.length === 0) {
+      const empty = isHistoryQueryEmpty(applied)
+        ? emptyStateCopy.noTransactions
+        : emptyStateCopy.noResults;
+      return <EmptyState description={empty.description} title={empty.title} />;
+    }
+
+    return null;
+  })();
 
   const dialogOpen = dialog !== null;
   const dialogId = dialog?.transactionId ?? null;
+  const showRows = history.status === "ready" && snapshotItems.length > 0;
 
   return (
     <div className="flex w-full max-w-full min-w-0 flex-col gap-4">
-      {isDesktop ? (
-        <div
-          className="w-full max-w-full min-w-0 overflow-x-auto"
-          data-history-layout="desktop"
-        >
-          <table className="w-full max-w-full min-w-0 border-collapse text-left">
-            <caption className="sr-only">{historyCopy.caption}</caption>
-            <thead>
-              <tr className="border-border text-caption text-text-muted border-b">
-                <th className="px-3 py-2 font-medium" scope="col">
-                  {historyCopy.conceptColumn}
-                </th>
-                <th className="px-3 py-2 font-medium" scope="col">
-                  {historyCopy.categoryColumn}
-                </th>
-                <th className="px-3 py-2 font-medium" scope="col">
-                  {historyCopy.dateColumn}
-                </th>
-                <th className="px-3 py-2 font-medium" scope="col">
-                  {historyCopy.tagsColumn}
-                </th>
-                <th className="px-3 py-2 text-right font-medium" scope="col">
-                  {historyCopy.amountColumn}
-                </th>
-                <th className="px-3 py-2 font-medium" scope="col">
-                  {historyCopy.actions}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {snapshot.items.map((transaction) => (
-                <HistoryDesktopRow
+      <HistoryFilters
+        categories={categories}
+        onChange={setApplied}
+        tags={tags}
+        value={applied}
+      />
+      {body}
+      {showRows ? (
+        isDesktop ? (
+          <div
+            className="w-full max-w-full min-w-0 overflow-x-auto"
+            data-history-layout="desktop"
+          >
+            <table className="w-full max-w-full min-w-0 border-collapse text-left">
+              <caption className="sr-only">{historyCopy.caption}</caption>
+              <thead>
+                <tr className="border-border text-caption text-text-muted border-b">
+                  <th className="px-3 py-2 font-medium" scope="col">
+                    {historyCopy.conceptColumn}
+                  </th>
+                  <th className="px-3 py-2 font-medium" scope="col">
+                    {historyCopy.categoryColumn}
+                  </th>
+                  <th className="px-3 py-2 font-medium" scope="col">
+                    {historyCopy.dateColumn}
+                  </th>
+                  <th className="px-3 py-2 font-medium" scope="col">
+                    {historyCopy.tagsColumn}
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium" scope="col">
+                    {historyCopy.amountColumn}
+                  </th>
+                  <th className="px-3 py-2 font-medium" scope="col">
+                    {historyCopy.actions}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {snapshotItems.map((transaction) => (
+                  <HistoryDesktopRow
+                    key={transaction.id}
+                    categories={categories}
+                    menuOpen={openMenuId === transaction.id}
+                    onAction={(action) => {
+                      openDialog(transaction.id, action);
+                    }}
+                    onMenuOpenChange={(open) => {
+                      handleMenuOpenChange(transaction.id, open);
+                    }}
+                    tags={tags}
+                    transaction={transaction}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div data-history-layout="mobile">
+            <ol
+              aria-label={historyCopy.caption}
+              className="flex w-full max-w-full flex-col gap-3"
+            >
+              {snapshotItems.map((transaction) => (
+                <HistoryMobileRow
                   key={transaction.id}
-                  categories={snapshot.categories}
+                  categories={categories}
                   menuOpen={openMenuId === transaction.id}
                   onAction={(action) => {
                     openDialog(transaction.id, action);
@@ -201,37 +268,14 @@ export function HistoryList({ client }: HistoryListProps = {}) {
                   onMenuOpenChange={(open) => {
                     handleMenuOpenChange(transaction.id, open);
                   }}
-                  tags={snapshot.tags}
+                  tags={tags}
                   transaction={transaction}
                 />
               ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div data-history-layout="mobile">
-          <ol
-            aria-label={historyCopy.caption}
-            className="flex w-full max-w-full flex-col gap-3"
-          >
-            {snapshot.items.map((transaction) => (
-              <HistoryMobileRow
-                key={transaction.id}
-                categories={snapshot.categories}
-                menuOpen={openMenuId === transaction.id}
-                onAction={(action) => {
-                  openDialog(transaction.id, action);
-                }}
-                onMenuOpenChange={(open) => {
-                  handleMenuOpenChange(transaction.id, open);
-                }}
-                tags={snapshot.tags}
-                transaction={transaction}
-              />
-            ))}
-          </ol>
-        </div>
-      )}
+            </ol>
+          </div>
+        )
+      ) : null}
       <EditTransactionDialog
         client={apiClient}
         onOpenChange={(open) => {

@@ -80,6 +80,28 @@ describe("loadHistorySnapshot", () => {
     ]);
   });
 
+  it("encodes the list query so accents and repeated tags survive the snapshot URL", async () => {
+    const fetchImpl = vi.fn<FetchLike>(async (path) => {
+      if (path.startsWith("/api/transactions")) {
+        return jsonResponse(200, envelope(page));
+      }
+      if (path.startsWith("/api/categories")) {
+        return jsonResponse(200, envelope(categories));
+      }
+      return jsonResponse(200, envelope(tags));
+    });
+
+    await loadHistorySnapshot(
+      createApiClient({ fetch: fetchImpl }),
+      new AbortController().signal,
+      { q: "Café & té", tagId: ["tag-trips", "tag-home"] },
+    );
+
+    expect(fetchImpl.mock.calls.map((call) => call[0])).toContain(
+      "/api/transactions?tagId=tag-trips&tagId=tag-home&q=Caf%C3%A9%20%26%20t%C3%A9",
+    );
+  });
+
   it("propagates a history page failure without labeling rows", async () => {
     const fetchImpl = vi.fn<FetchLike>(async (path) => {
       if (path.startsWith("/api/transactions")) {

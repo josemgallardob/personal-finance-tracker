@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import { cx } from "../../../shared/ui/class-names";
 import { EmptyState } from "../../../shared/ui/empty-state";
+import {
+  historyPageHref,
+  parseHistoryQueryState,
+} from "../client/history-query-state";
 import {
   HISTORY_ALL_TAB,
   HISTORY_RECURRING_TAB,
@@ -17,6 +22,11 @@ export interface HistoryTabsProps {
 
 /** Todos and Recurrentes destination tabs of the movements page. */
 export function HistoryTabs({ activeTab }: HistoryTabsProps) {
+  const searchParams = useSearchParams();
+  const queryState = parseHistoryQueryState(
+    new URLSearchParams(searchParams.toString()),
+  );
+
   return (
     <div
       aria-label={historyCopy.tabsLabel}
@@ -25,12 +35,20 @@ export function HistoryTabs({ activeTab }: HistoryTabsProps) {
     >
       <HistoryTabLink
         active={activeTab === HISTORY_ALL_TAB}
-        href="/transactions?tab=all"
+        href={historyPageHref(
+          HISTORY_ALL_TAB,
+          queryState,
+          new URLSearchParams(searchParams.toString()),
+        )}
         label={historyCopy.allTab}
       />
       <HistoryTabLink
         active={activeTab === HISTORY_RECURRING_TAB}
-        href="/transactions?tab=recurring"
+        href={historyPageHref(
+          HISTORY_RECURRING_TAB,
+          queryState,
+          new URLSearchParams(searchParams.toString()),
+        )}
         label={historyCopy.recurringTab}
       />
     </div>

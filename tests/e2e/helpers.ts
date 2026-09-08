@@ -43,10 +43,13 @@ export async function fillRequiredFields(
   page: Page,
   options: { amount: string; category: string; concept?: string },
 ): Promise<void> {
-  await page.getByLabel(/Importe/).fill(options.amount);
-  await page.getByLabel(/Categoría/).selectOption({ label: options.category });
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/Importe/).fill(options.amount);
+  await dialog
+    .getByLabel(/Categoría/)
+    .selectOption({ label: options.category });
   if (options.concept !== undefined) {
-    await page.getByLabel("Concepto").fill(options.concept);
+    await dialog.getByLabel("Concepto").fill(options.concept);
   }
 }
 

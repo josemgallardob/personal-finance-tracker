@@ -1,6 +1,19 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/transactions",
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams("tab=all"),
+}));
 
 import {
   createApiClient,
@@ -8,6 +21,11 @@ import {
 } from "../../../shared/client/api-client";
 import { FinancialDataProvider } from "../../../shared/client/financial-data-provider";
 import { emptyStateCopy } from "../../../shared/ui/empty-state";
+import {
+  emptyHistoryQueryState,
+  HISTORY_SEARCH_DEBOUNCE_MS,
+  type HistoryQueryState,
+} from "../client/history-query-state";
 import { HistoryList } from "./history-list";
 import { historyCopy } from "./history-copy";
 import { transactionMaintenanceCopy } from "./transaction-dialog-support";
@@ -54,6 +72,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -82,15 +101,39 @@ function historyFetch(options?: {
     if (path.startsWith("/api/tags")) {
       return jsonResponse(200, envelope(tags));
     }
-    if (path === "/api/transactions" && method === "GET") {
+    if (
+      (path === "/api/transactions" || path.startsWith("/api/transactions?")) &&
+      method === "GET"
+    ) {
       listAttempts += 1;
       if (options?.failListOnce && listAttempts === 1) {
         return Promise.reject(new TypeError("Failed to fetch"));
       }
-      return jsonResponse(
-        200,
-        envelope({ items: [...currentById.values()], nextCursor: null }),
-      );
+      const params = new URL(path, "http://localhost").searchParams;
+      const q = params.get("q")?.trim().toLowerCase() ?? "";
+      const type = params.get("type");
+      const categoryId = params.get("categoryId");
+      const tagIds = params.getAll("tagId").filter((tagId) => tagId !== "");
+      let listed = [...currentById.values()];
+      if (q !== "") {
+        listed = listed.filter((item) => {
+          const concept = (item.concept ?? "").toLowerCase();
+          const note = (item.note ?? "").toLowerCase();
+          return concept.includes(q) || note.includes(q);
+        });
+      }
+      if (type === "expense" || type === "income") {
+        listed = listed.filter((item) => item.type === type);
+      }
+      if (categoryId) {
+        listed = listed.filter((item) => item.categoryId === categoryId);
+      }
+      if (tagIds.length > 0) {
+        listed = listed.filter((item) =>
+          item.tagIds.some((tagId) => tagIds.includes(tagId)),
+        );
+      }
+      return jsonResponse(200, envelope({ items: listed, nextCursor: null }));
     }
     if (path.startsWith("/api/transactions/") && method === "GET") {
       const id = path.slice("/api/transactions/".length);
@@ -172,6 +215,25 @@ function renderHistory(fetchImpl: FetchLike) {
     <FinancialDataProvider>
       <HistoryList client={createApiClient({ fetch: fetchImpl })} />
     </FinancialDataProvider>,
+  );
+}
+
+function ControlledHistory({
+  fetchImpl,
+  initial = emptyHistoryQueryState,
+}: {
+  readonly fetchImpl: FetchLike;
+  readonly initial?: HistoryQueryState;
+}) {
+  const [state, setState] = useState(initial);
+  return (
+    <FinancialDataProvider>
+      <HistoryList
+        client={createApiClient({ fetch: fetchImpl })}
+        onQueryStateChange={setState}
+        queryState={state}
+      />
+    </FinancialDataProvider>
   );
 }
 
@@ -434,5 +496,177 @@ describe("HistoryList", () => {
         within(desktopTable()).queryByRole("rowheader", { name: "Copia" }),
       ).not.toBeInTheDocument();
     });
+  }, 15_000);
+
+  it("shows a distinct no-results state when filters match nothing", async () => {
+    render(
+      <FinancialDataProvider>
+        <HistoryList
+          client={createApiClient({ fetch: historyFetch({ items: [] }) })}
+          onQueryStateChange={vi.fn()}
+          queryState={{ ...emptyHistoryQueryState, q: "zzz" }}
+        />
+      </FinancialDataProvider>,
+    );
+
+    expect(
+      await screen.findByRole("region", {
+        name: emptyStateCopy.noResults.title,
+      }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("region", {
+        name: emptyStateCopy.noTransactions.title,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("debounces search, combines filters without duplicate tags, and encodes the list URL", async () => {
+    const fetchImpl = historyFetch();
+    render(<ControlledHistory fetchImpl={fetchImpl} />);
+
+    await screen.findByLabelText(historyCopy.searchLabel);
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByLabelText(historyCopy.searchLabel), {
+      target: { value: "Café & té" },
+    });
+    expect(
+      fetchImpl.mock.calls.some(([path]) => String(path).includes("q=Caf")),
+    ).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(HISTORY_SEARCH_DEBOUNCE_MS);
+    vi.useRealTimers();
+    await waitFor(() => {
+      expect(
+        fetchImpl.mock.calls.some(
+          ([path]) =>
+            String(path) === "/api/transactions?q=Caf%C3%A9%20%26%20t%C3%A9",
+        ),
+      ).toBe(true);
+    });
+
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: historyCopy.clearFilters }),
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: historyCopy.clearFilters }),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(historyCopy.searchLabel)).toHaveValue("");
+
+    await user.selectOptions(
+      screen.getByLabelText(historyCopy.typeLabel),
+      "expense",
+    );
+    await user.selectOptions(
+      screen.getByLabelText(historyCopy.categoryLabel),
+      "cat-food",
+    );
+    await user.click(screen.getByRole("button", { name: /Etiquetas · 0/ }));
+    await user.click(screen.getByRole("checkbox", { name: "Viajes" }));
+    await user.click(screen.getByRole("checkbox", { name: "Viajes" }));
+    await user.click(screen.getByRole("checkbox", { name: "Viajes" }));
+    await user.click(screen.getByRole("button", { name: "Cerrar" }));
+
+    await waitFor(() => {
+      expect(
+        fetchImpl.mock.calls.some(([path]) => {
+          const href = String(path);
+          return (
+            href.includes("type=expense") &&
+            href.includes("categoryId=cat-food") &&
+            href.includes("tagId=tag-trips") &&
+            !href.includes("q=") &&
+            !href.includes("tagId=tag-trips&tagId=tag-trips")
+          );
+        }),
+      ).toBe(true);
+    });
+
+    expect(
+      await screen.findByRole("rowheader", { name: "Supermercado" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("rowheader", { name: "Nómina" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: historyCopy.clearFilters }),
+    );
+    expect(
+      await screen.findByRole("rowheader", { name: "Nómina" }),
+    ).toBeVisible();
+  });
+
+  it("discards a slower page from the previous filter set", async () => {
+    let releaseFirst: ((value: Response) => void) | undefined;
+    const firstPage = new Promise<Response>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const fetchImpl = vi.fn<FetchLike>(async (path, init) => {
+      const method = init.method ?? "GET";
+      if (path.startsWith("/api/preferences")) {
+        return jsonResponse(200, envelope(preferences));
+      }
+      if (path.startsWith("/api/categories")) {
+        return jsonResponse(200, envelope(categories));
+      }
+      if (path.startsWith("/api/tags")) {
+        return jsonResponse(200, envelope(tags));
+      }
+      if (
+        (path === "/api/transactions" ||
+          path.startsWith("/api/transactions?")) &&
+        method === "GET"
+      ) {
+        if (String(path).includes("type=expense")) {
+          return jsonResponse(
+            200,
+            envelope({ items: [movement], nextCursor: null }),
+          );
+        }
+
+        return firstPage;
+      }
+
+      return jsonResponse(404, {
+        error: {
+          code: "notFound",
+          message: "missing",
+          requestId: "req-maintain",
+        },
+      });
+    });
+    const user = userEvent.setup();
+    render(<ControlledHistory fetchImpl={fetchImpl} />);
+
+    await screen.findByLabelText(historyCopy.searchLabel);
+    await user.selectOptions(
+      screen.getByLabelText(historyCopy.typeLabel),
+      "expense",
+    );
+    expect(
+      await screen.findByRole("rowheader", { name: "Supermercado" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("rowheader", { name: "Nómina" }),
+    ).not.toBeInTheDocument();
+
+    releaseFirst?.(
+      jsonResponse(
+        200,
+        envelope({ items: [laterMovement, movement], nextCursor: null }),
+      ),
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("rowheader", { name: "Nómina" }),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("rowheader", { name: "Supermercado" }),
+    ).toBeVisible();
   });
 });
