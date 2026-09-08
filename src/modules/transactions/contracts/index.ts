@@ -5,4 +5,5 @@
  * the documented representation cannot drift between the two sides.
  */
 
+export * from "./http";
 export * from "./transaction";

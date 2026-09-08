@@ -13,8 +13,12 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-/** Header a client uses to propose a correlation identifier. */
-export const REQUEST_ID_HEADER = "x-request-id";
+import { REQUEST_ID_HEADER } from "../../contracts/http";
+
+// The header name is part of the wire contract and is read back by the browser
+// client, which cannot import this server-only module. It is defined once in
+// the shared transport contract and re-exported here for the route pipeline.
+export { REQUEST_ID_HEADER };
 
 /** Longest accepted client-proposed identifier, in characters. */
 export const MAX_REQUEST_ID_LENGTH = 64;

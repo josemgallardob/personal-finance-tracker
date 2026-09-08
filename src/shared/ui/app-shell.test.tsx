@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { useFinancialDataRevision } from "../client/financial-data-provider";
 import { AppShell, appShellCopy, isAppShellPathActive } from "./app-shell";
 
 const { usePathname } = vi.hoisted(() => ({
@@ -28,6 +29,16 @@ vi.mock("next/link", () => ({
     );
   },
 }));
+
+function FinancialRevisionReadout() {
+  const { revision, refreshEpoch } = useFinancialDataRevision();
+
+  return (
+    <p>
+      revision:{revision} epoch:{refreshEpoch}
+    </p>
+  );
+}
 
 describe("isAppShellPathActive", () => {
   it("marks only the home route as Inicio", () => {
@@ -123,5 +134,16 @@ describe("AppShell", () => {
     expect(movementLink.className).toContain("min-h-11");
     expect(movementLink.className).toContain("max-w-full");
     expect(movementLink).toHaveAttribute("aria-current", "page");
+  });
+
+  it("offers descendant pages a financial revision channel", () => {
+    usePathname.mockReturnValue("/");
+    render(
+      <AppShell>
+        <FinancialRevisionReadout />
+      </AppShell>,
+    );
+
+    expect(screen.getByText("revision:0 epoch:0")).toBeVisible();
   });
 });

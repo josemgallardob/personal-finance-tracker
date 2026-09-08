@@ -11,8 +11,6 @@
 
 import "server-only";
 
-import { z } from "zod";
-
 import type { DomainError, DomainResult } from "../../../shared/domain/errors";
 import { domainError, invalid } from "../../../shared/domain/errors";
 import type { SqliteConnection } from "../../../shared/server/database";
@@ -23,7 +21,6 @@ import {
   type ApiResult,
 } from "../../../shared/server/http/failure";
 import { toApiFailure } from "../../../shared/server/http/domain-status";
-import { apiObject } from "../../../shared/server/http/schema";
 import type {
   TransactionRepositoryError,
   TransactionResult,
@@ -33,40 +30,11 @@ import {
   type SqliteUnitOfWork,
 } from "../infrastructure/sqlite-unit-of-work";
 
-/** One tag chosen from a form: an existing identifier or a name to create. */
-export const tagInputSchema = z.union([
-  apiObject({ tagId: z.string() }),
-  apiObject({ name: z.string() }),
-]);
-
-/** Body of POST /api/transactions and PUT /api/transactions/[id]. */
-export const transactionWriteBodySchema = apiObject({
-  type: z.enum(["expense", "income"]),
-  amountMinor: z.number(),
-  date: z.string(),
-  categoryId: z.string(),
-  concept: z.union([z.string(), z.null()]).optional(),
-  note: z.union([z.string(), z.null()]).optional(),
-  tagInputs: z.array(tagInputSchema).optional(),
-});
-
-/**
- * Query of GET /api/transactions.
- *
- * `tagId` may repeat; every other filter must appear at most once. `untagged`
- * is mutually exclusive with `tagId` once the domain sees both.
- */
-export const transactionListQuerySchema = apiObject({
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
-  type: z.enum(["expense", "income"]).optional(),
-  categoryId: z.string().optional(),
-  tagId: z.union([z.string(), z.array(z.string())]).optional(),
-  untagged: z.enum(["true", "false"]).optional(),
-  q: z.string().optional(),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().optional(),
-});
+export {
+  tagInputSchema,
+  transactionListQuerySchema,
+  transactionWriteBodySchema,
+} from "../contracts/http";
 
 /** Thrown to make SQLite roll back a domain refusal inside a transaction. */
 const ROLLBACK_SIGNAL = new Error("Transaction HTTP work was rolled back");
