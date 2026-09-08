@@ -26,7 +26,8 @@ export interface InitializedSchemaFixture {
 
 /**
  * Opens a temporary SQLite file, applies committed migrations and creates the
- * implicit personal workspace.
+ * implicit personal workspace without the accepted category catalog, so schema
+ * tests can insert their own category rows.
  */
 export function createInitializedSchemaFixture(): InitializedSchemaFixture {
   const file = createTemporarySqliteFile();
@@ -46,6 +47,7 @@ export function createInitializedSchemaFixture(): InitializedSchemaFixture {
 
   const initialized = initializeDatabase(opened.value, {
     now: () => 1_746_268_800_000,
+    seedCategories: false,
   });
 
   if (!initialized.ok) {

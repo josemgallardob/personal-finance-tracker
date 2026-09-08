@@ -19,7 +19,12 @@ export type DomainErrorCode =
   | "invalidAmount"
   | "duplicateTag"
   | "tooManyTags"
-  | "incompatibleCategoryType";
+  | "incompatibleCategoryType"
+  | "duplicateName"
+  | "alreadyArchived"
+  | "notFound"
+  | "archived"
+  | "unavailable";
 
 /** Rejected field and the reason why it was rejected. */
 export interface DomainError {
