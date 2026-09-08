@@ -62,8 +62,14 @@ function isLeapYear(year: number): boolean {
   return year % 400 === 0;
 }
 
-/** Number of days the given month really has. */
-function daysInMonth(year: number, month: number): number {
+/**
+ * Number of days the given month really has.
+ *
+ * Callers outside this module use it to clamp an ordinal day to a month that
+ * does not contain it, which is how period comparisons keep both intervals
+ * equivalent across a shorter February.
+ */
+export function daysInMonth(year: number, month: number): number {
   if (month === 2 && isLeapYear(year)) {
     return 29;
   }
