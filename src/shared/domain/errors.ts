@@ -19,6 +19,7 @@ export type DomainErrorCode =
   | "invalidTemplateVersion"
   | "alreadyDeactivated"
   | "activeRuleExists"
+  | "usedByActiveRule"
   | "invalidDate"
   | "futureDate"
   | "invalidAmount"

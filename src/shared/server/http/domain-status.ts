@@ -50,6 +50,7 @@ export const DOMAIN_ERROR_API_CODE: Readonly<
   alreadyArchived: "conflict",
   alreadyDeactivated: "conflict",
   activeRuleExists: "conflict",
+  usedByActiveRule: "conflict",
   archived: "conflict",
   unavailable: "serviceUnavailable",
 });

@@ -107,6 +107,8 @@ function lifecycle(
       findDueRules: unused,
       findActiveRules: unused,
       findActiveRuleBySource: unused,
+      findActiveRuleByCategory: unused,
+      findActiveRuleByTag: unused,
       findRuleForUpdate: unused,
       insertRule: unused,
       replaceActiveRule: unused,
@@ -117,6 +119,7 @@ function lifecycle(
     occurrences: {
       reserveOccurrence: unused,
       linkGeneratedTransaction: unused,
+      clearGeneratedTransaction: unused,
       ...overrides.occurrences,
     },
     transactions: {

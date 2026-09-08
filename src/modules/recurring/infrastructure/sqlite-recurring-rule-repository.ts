@@ -31,6 +31,8 @@ import type { TagId } from "../../classification/domain/tag";
 import type { LocalDate } from "../../../shared/domain/dates";
 import {
   type ActiveRuleBySourceQuery,
+  type ActiveRuleByCategoryQuery,
+  type ActiveRuleByTagQuery,
   type ActiveRulesQuery,
   type AdvanceNextDueDateCommand,
   type DeactivateRuleCommand,
@@ -147,17 +149,60 @@ function findActiveRuleBySource(
   unit: SqliteUnitOfWork,
   query: ActiveRuleBySourceQuery,
 ): RecurringResult<StoredRecurringRule | null> {
-  const built = selectRules(
-    unit,
-    query.workspaceId,
-    [
-      eq(recurringRule.workspaceId, query.workspaceId),
-      eq(recurringRule.sourceTransactionId, query.sourceTransactionId),
-      isNull(recurringRule.deactivatedAt),
-    ],
-    [asc(recurringRule.id)],
+  return firstRule(
+    selectRules(
+      unit,
+      query.workspaceId,
+      [
+        eq(recurringRule.workspaceId, query.workspaceId),
+        eq(recurringRule.sourceTransactionId, query.sourceTransactionId),
+        isNull(recurringRule.deactivatedAt),
+      ],
+      [asc(recurringRule.id)],
+    ),
   );
+}
 
+function findActiveRuleByCategory(
+  unit: SqliteUnitOfWork,
+  query: ActiveRuleByCategoryQuery,
+): RecurringResult<StoredRecurringRule | null> {
+  return firstRule(
+    selectRules(
+      unit,
+      query.workspaceId,
+      [
+        eq(recurringRule.workspaceId, query.workspaceId),
+        eq(recurringRule.categoryId, query.categoryId),
+        isNull(recurringRule.deactivatedAt),
+      ],
+      [asc(recurringRule.id)],
+    ),
+  );
+}
+
+function findActiveRuleByTag(
+  unit: SqliteUnitOfWork,
+  query: ActiveRuleByTagQuery,
+): RecurringResult<StoredRecurringRule | null> {
+  return firstRule(
+    selectRules(
+      unit,
+      query.workspaceId,
+      [
+        eq(recurringRule.workspaceId, query.workspaceId),
+        isNull(recurringRule.deactivatedAt),
+        eq(recurringRuleTag.tagId, query.tagId),
+      ],
+      [asc(recurringRule.id)],
+      true,
+    ),
+  );
+}
+
+function firstRule(
+  built: RecurringResult<readonly StoredRecurringRule[]>,
+): RecurringResult<StoredRecurringRule | null> {
   if (!built.ok) {
     return built;
   }
@@ -191,11 +236,12 @@ function selectRules(
   workspaceId: string,
   conditions: readonly SQL[],
   order: readonly SQL[],
+  joinTemplateTags = false,
 ): RecurringResult<readonly StoredRecurringRule[]> {
   let rows: RuleRow[];
 
   try {
-    rows = unit.db
+    const selected = unit.db
       .select(SELECTED_COLUMNS)
       .from(recurringRule)
       .innerJoin(
@@ -204,7 +250,19 @@ function selectRules(
           eq(category.id, recurringRule.categoryId),
           eq(category.workspaceId, recurringRule.workspaceId),
         ),
-      )
+      );
+
+    const filtered = joinTemplateTags
+      ? selected.innerJoin(
+          recurringRuleTag,
+          and(
+            eq(recurringRuleTag.recurringRuleId, recurringRule.id),
+            eq(recurringRuleTag.workspaceId, recurringRule.workspaceId),
+          ),
+        )
+      : selected;
+
+    rows = filtered
       .where(and(...conditions))
       .orderBy(...order)
       .all();
@@ -679,6 +737,8 @@ export const sqliteRecurringRuleRepository: RecurringRuleRepository<SqliteUnitOf
     findDueRules,
     findActiveRules,
     findActiveRuleBySource,
+    findActiveRuleByCategory,
+    findActiveRuleByTag,
     findRuleForUpdate,
     insertRule,
     replaceActiveRule,

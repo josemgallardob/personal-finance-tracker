@@ -2,8 +2,9 @@
  * Atomic deletion of a stored movement.
  *
  * The use case removes the workspace-scoped row and its tag links together.
- * Categories and tags it used are left in place. Recurrence regeneration is
- * out of scope: deleting an entry here never recreates it.
+ * Categories and tags it used are left in place. If the movement was generated
+ * by a rule, the processed due date is unlinked first so the tombstone stays
+ * and a later run never recreates the entry.
  */
 
 import {
@@ -14,6 +15,7 @@ import {
   valid,
 } from "../../../shared/domain/errors";
 import { isIdentifier } from "../../../shared/domain/text";
+import type { RecurringOccurrenceRepository } from "../../recurring/application/ports/recurring-repository";
 import type { TransactionId } from "../domain/transaction";
 import type {
   TransactionRepository,
@@ -31,6 +33,7 @@ export interface DeleteTransactionCommand {
 /** Collaborators of the use case. */
 export interface DeleteTransactionDeps<TUnit extends UnitOfWork> {
   readonly transactions: TransactionRepository<TUnit>;
+  readonly occurrences?: RecurringOccurrenceRepository<TUnit>;
 }
 
 /** Delete use case bound to one transaction port. */
@@ -47,7 +50,7 @@ export function createDeleteTransaction<TUnit extends UnitOfWork>(
 ): DeleteTransaction<TUnit> {
   return {
     execute(unit, command) {
-      return executeDeleteTransaction(unit, command, deps.transactions);
+      return executeDeleteTransaction(unit, command, deps);
     },
   };
 }
@@ -55,14 +58,29 @@ export function createDeleteTransaction<TUnit extends UnitOfWork>(
 function executeDeleteTransaction<TUnit extends UnitOfWork>(
   unit: TUnit,
   command: DeleteTransactionCommand,
-  transactions: TransactionRepository<TUnit>,
+  deps: DeleteTransactionDeps<TUnit>,
 ): DomainResult<TransactionId> {
   if (!isIdentifier(command.transactionId)) {
     return invalid([domainError("id", "invalidIdentifier")]);
   }
 
+  if (deps.occurrences) {
+    if (!unit.isTransactional) {
+      return invalid([domainError("storage", "unavailable")]);
+    }
+
+    const cleared = deps.occurrences.clearGeneratedTransaction(unit, {
+      workspaceId: command.workspaceId,
+      transactionId: command.transactionId as TransactionId,
+    });
+
+    if (!cleared.ok) {
+      return invalid([domainError("storage", "unavailable")]);
+    }
+  }
+
   return fromTransactionResult(
-    transactions.deleteTransaction(unit, {
+    deps.transactions.deleteTransaction(unit, {
       workspaceId: command.workspaceId,
       transactionId: command.transactionId as TransactionId,
     }),

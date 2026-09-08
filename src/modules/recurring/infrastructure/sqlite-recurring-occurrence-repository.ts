@@ -18,6 +18,7 @@ import { and, eq } from "drizzle-orm";
 
 import { recurringOccurrence, workspace } from "../../../../db/schema";
 import {
+  type ClearGeneratedTransactionCommand,
   type LinkGeneratedTransactionCommand,
   type RecurringOccurrenceRepository,
   type RecurringResult,
@@ -140,6 +141,37 @@ function linkGeneratedTransaction(
   return toOccurrence(row);
 }
 
+function clearGeneratedTransaction(
+  unit: SqliteUnitOfWork,
+  command: ClearGeneratedTransactionCommand,
+): RecurringResult<RecurringOccurrence | null> {
+  let updated: OccurrenceRow[];
+
+  try {
+    updated = unit.db
+      .update(recurringOccurrence)
+      .set({ transactionId: null })
+      .where(
+        and(
+          eq(recurringOccurrence.workspaceId, command.workspaceId),
+          eq(recurringOccurrence.transactionId, command.transactionId),
+        ),
+      )
+      .returning(SELECTED_COLUMNS)
+      .all();
+  } catch (cause) {
+    return failed("storageFailure", describeCause(cause));
+  }
+
+  const [row] = updated;
+
+  if (!row) {
+    return succeeded(null);
+  }
+
+  return toOccurrence(row);
+}
+
 function occurrenceForeignKeyFailure(
   unit: SqliteUnitOfWork,
   workspaceId: string,
@@ -191,4 +223,5 @@ export const sqliteRecurringOccurrenceRepository: RecurringOccurrenceRepository<
   {
     reserveOccurrence,
     linkGeneratedTransaction,
+    clearGeneratedTransaction,
   };

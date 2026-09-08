@@ -4,7 +4,6 @@
  * The cases cover create, rename, complete reorder and archive for categories
  * and tags, including conflicts, type boundaries, assignability after archive,
  * history preserved on linked movements, and rollback of an invalid order.
- * Recurrence protection is out of scope (REC-04).
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

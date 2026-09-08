@@ -95,6 +95,8 @@ function rules(
     findDueRules: unused,
     findActiveRules: unused,
     findActiveRuleBySource: unused,
+    findActiveRuleByCategory: unused,
+    findActiveRuleByTag: unused,
     findRuleForUpdate: unused,
     insertRule: unused,
     replaceActiveRule: unused,
@@ -110,6 +112,7 @@ function occurrences(
   return {
     reserveOccurrence: unused,
     linkGeneratedTransaction: unused,
+    clearGeneratedTransaction: unused,
     ...overrides,
   };
 }

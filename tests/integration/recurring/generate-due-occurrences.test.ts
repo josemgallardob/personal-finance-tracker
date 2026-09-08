@@ -29,11 +29,14 @@ import {
   readTransactionTags,
   readTransactions,
   rewindNextDueDate,
+  runDomainTransaction,
   sequentialIds,
   storeCategory,
   storeRule,
   storeTag,
 } from "./helpers";
+import { createDeleteTransaction } from "../../../src/modules/transactions/application/delete-transaction";
+import { sqliteRecurringOccurrenceRepository } from "../../../src/modules/recurring/infrastructure/sqlite-recurring-occurrence-repository";
 import { sqliteTransactionRepository } from "../../../src/modules/transactions/infrastructure/sqlite-transaction-repository";
 import { runInTransaction } from "../../../src/modules/transactions/infrastructure/sqlite-unit-of-work";
 
@@ -335,9 +338,17 @@ describe("a generated movement the user deleted", () => {
       }).execute({ workspaceId: fixture.workspaceId }),
     );
 
-    fixture.connection.sqlite
-      .prepare(`DELETE FROM "transaction" WHERE id = ?`)
-      .run("gen-2");
+    okValue(
+      runDomainTransaction(fixture.connection, (unit) =>
+        createDeleteTransaction({
+          transactions: sqliteTransactionRepository,
+          occurrences: sqliteRecurringOccurrenceRepository,
+        }).execute(unit, {
+          workspaceId: fixture.workspaceId,
+          transactionId: "gen-2",
+        }),
+      ),
+    );
     rewindNextDueDate(fixture.connection, "rule-1", "2026-08-31");
 
     const report = okValue(

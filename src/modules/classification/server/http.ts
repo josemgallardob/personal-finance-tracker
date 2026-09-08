@@ -5,7 +5,9 @@
  * the real SQLite ports. This module owns the mapping a repository refusal
  * becomes, the transactional boundary a complete reorder needs, and the
  * identifier the dynamic path carries. It never accepts a workspace from the
- * request and never inspects recurrence rules: that protection is REC-04.
+ * request and never accepts a workspace from the client. Archive inspects
+ * active recurrence templates so a category or tag still copied by a rule is
+ * refused with a conflict that identifies that rule.
  */
 
 import "server-only";
@@ -25,6 +27,7 @@ import type {
   ClassificationRepositoryError,
   ClassificationResult,
 } from "../application/ports/classification-repository";
+import { sqliteRecurringRuleRepository } from "../../recurring/infrastructure/sqlite-recurring-rule-repository";
 import { sqliteCategoryRepository } from "../infrastructure/sqlite-category-repository";
 import { sqliteTagRepository } from "../infrastructure/sqlite-tag-repository";
 import {
@@ -52,6 +55,7 @@ export function classificationMaintenance() {
   return createClassificationMaintenance({
     categories: sqliteCategoryRepository,
     tags: sqliteTagRepository,
+    rules: sqliteRecurringRuleRepository,
   });
 }
 

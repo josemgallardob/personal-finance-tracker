@@ -286,6 +286,7 @@ describe("active listing, replacement and deactivation", () => {
   it("lists only active rules and finds the one of an origin movement", () => {
     const rent = storeCategory(fixture, "Alquiler", "expense");
     const salary = storeCategory(fixture, "Sueldo", "income");
+    const home = storeTag(fixture, "Casa");
     const origin = saveMovement(rent, TODAY);
     okValue(
       saveRule(
@@ -293,6 +294,7 @@ describe("active listing, replacement and deactivation", () => {
           id: "rule-expense",
           sourceTransactionId: origin.id,
           category: rent,
+          tagIds: [home.id],
           nextDueDate: "2026-10-08",
         }),
       ),
@@ -338,6 +340,38 @@ describe("active listing, replacement and deactivation", () => {
         sqliteRecurringRuleRepository.findActiveRuleBySource(unit, {
           workspaceId,
           sourceTransactionId: saveMovement(rent, "2026-01-15").id,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      okValue(
+        sqliteRecurringRuleRepository.findActiveRuleByCategory(unit, {
+          workspaceId,
+          categoryId: salary.id,
+        }),
+      )?.rule.id,
+    ).toBe("rule-income");
+    expect(
+      okValue(
+        sqliteRecurringRuleRepository.findActiveRuleByCategory(unit, {
+          workspaceId,
+          categoryId: storeCategory(fixture, "Ocio", "expense").id,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      okValue(
+        sqliteRecurringRuleRepository.findActiveRuleByTag(unit, {
+          workspaceId,
+          tagId: home.id,
+        }),
+      )?.rule.id,
+    ).toBe("rule-expense");
+    expect(
+      okValue(
+        sqliteRecurringRuleRepository.findActiveRuleByTag(unit, {
+          workspaceId,
+          tagId: storeTag(fixture, "Vacaciones").id,
         }),
       ),
     ).toBeNull();
@@ -788,6 +822,63 @@ describe("reserving a due date", () => {
           workspaceId,
           occurrenceId: second.id,
           transactionId: movement.id,
+        }),
+      ),
+    ).toBe("alreadyProcessed");
+  });
+
+  it("clears the movement link and leaves the processed date in place", () => {
+    const category = storeCategory(fixture, "Alquiler", "expense");
+    const rule = okValue(
+      saveRule(newRule({ category, nextDueDate: "2026-07-31" })),
+    );
+    const movement = saveMovement(category, "2026-07-31");
+    const reserved = occurrence({
+      recurringRuleId: rule.id,
+      scheduledFor: "2026-07-31",
+    });
+    okValue(
+      sqliteRecurringOccurrenceRepository.reserveOccurrence(unit, {
+        workspaceId,
+        occurrence: reserved,
+      }),
+    );
+    okValue(
+      sqliteRecurringOccurrenceRepository.linkGeneratedTransaction(unit, {
+        workspaceId,
+        occurrenceId: reserved.id,
+        transactionId: movement.id,
+      }),
+    );
+
+    const tombstone = okValue(
+      sqliteRecurringOccurrenceRepository.clearGeneratedTransaction(unit, {
+        workspaceId,
+        transactionId: movement.id,
+      }),
+    );
+
+    expect(tombstone).toMatchObject({
+      id: reserved.id,
+      transactionId: null,
+      scheduledFor: "2026-07-31",
+    });
+    expect(
+      okValue(
+        sqliteRecurringOccurrenceRepository.clearGeneratedTransaction(unit, {
+          workspaceId,
+          transactionId: movement.id,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      errorCode(
+        sqliteRecurringOccurrenceRepository.reserveOccurrence(unit, {
+          workspaceId,
+          occurrence: occurrence({
+            recurringRuleId: rule.id,
+            scheduledFor: "2026-07-31",
+          }),
         }),
       ),
     ).toBe("alreadyProcessed");
