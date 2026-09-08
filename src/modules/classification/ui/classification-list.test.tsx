@@ -24,17 +24,36 @@ import {
 } from "./classification-list";
 import {
   activeArchivedSummary,
+  archiveCategoryLabel,
+  archiveTagLabel,
   classificationCopy,
   classificationFailureCopy,
+  renameCategoryLabel,
   renameTagLabel,
 } from "./classification-copy";
+import { archiveDialogCopy } from "./archive-dialog";
 import { classificationFormCopy } from "./classification-form";
+import { moveDownLabel, moveUpLabel, orderControlsCopy } from "./order-model";
 
 const REQUEST_ID = "req-classification";
 
 const expenseCategory = {
   id: "seed-exp-alquiler",
   name: "Alquiler",
+  type: "expense" as const,
+  isArchived: false,
+};
+
+const supermarketCategory = {
+  id: "seed-exp-supermercado",
+  name: "Supermercado",
+  type: "expense" as const,
+  isArchived: false,
+};
+
+const carCategory = {
+  id: "seed-exp-coche",
+  name: "Coche",
   type: "expense" as const,
   isArchived: false,
 };
@@ -119,6 +138,17 @@ function categoriesRegion() {
 
 function tagsRegion() {
   return screen.getByRole("region", { name: classificationCopy.tagsTitle });
+}
+
+function expenseRowNames(): string[] {
+  return within(
+    screen.getByRole("list", { name: classificationCopy.expenseTitle }),
+  )
+    .getAllByRole("listitem")
+    .map((item) => {
+      const rename = within(item).getByRole("button", { name: /Renombrar / });
+      return rename.getAttribute("aria-label")!.replace("Renombrar ", "");
+    });
 }
 
 describe("groupCategoriesByType", () => {
@@ -492,10 +522,11 @@ describe("ClassificationList", () => {
       classificationCopy.categoriesRetryLabel,
       null,
       renameTagLabel(activeTag.name),
+      archiveTagLabel(activeTag.name),
       renameTagLabel(archivedTag.name),
     ]);
     expect(mobile.tags).toEqual([
-      `${activeTag.name}${classificationCopy.renameAction}`,
+      `${activeTag.name}${classificationCopy.renameAction}${classificationCopy.archiveAction}`,
       `${archivedTag.name}${classificationCopy.archivedBadge}${classificationCopy.renameAction}`,
     ]);
 
@@ -602,5 +633,368 @@ describe("ClassificationList", () => {
         screen.getByRole("button", { name: renameTagLabel("Viaje") }),
       ).toHaveFocus();
     });
+  });
+
+  it("moves first, middle and last active categories and keeps archived rows last", async () => {
+    const user = userEvent.setup();
+    let categories = [
+      expenseCategory,
+      supermarketCategory,
+      carCategory,
+      archivedExpenseCategory,
+      incomeCategory,
+    ];
+    const fetchImpl = vi.fn<FetchLike>((input, init) => {
+      const method = init?.method ?? "GET";
+
+      if (input.startsWith("/api/tags")) {
+        return Promise.resolve(dataResponse([activeTag]));
+      }
+
+      if (method === "PUT" && input === "/api/categories/order") {
+        const body = JSON.parse(String(init?.body)) as {
+          type: string;
+          orderedCategoryIds: string[];
+        };
+        expect(body.type).toBe("expense");
+        const byId = new Map(categories.map((item) => [item.id, item]));
+        const nextActive = body.orderedCategoryIds.map((id) => {
+          const item = byId.get(id);
+          expect(item?.isArchived).toBe(false);
+          expect(item?.type).toBe("expense");
+          return item!;
+        });
+        categories = [...nextActive, archivedExpenseCategory, incomeCategory];
+        return Promise.resolve(dataResponse(categories));
+      }
+
+      return Promise.resolve(dataResponse(categories));
+    });
+
+    renderList(fetchImpl);
+    await screen.findByText("Alquiler");
+
+    expect(
+      screen.getByRole("button", { name: moveUpLabel("Alquiler") }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: moveDownLabel("Coche") }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: moveDownLabel("Tabaco") }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: moveDownLabel("Alquiler") }),
+    );
+    await waitFor(() => {
+      expect(expenseRowNames()).toEqual([
+        "Supermercado",
+        "Alquiler",
+        "Coche",
+        "Tabaco",
+      ]);
+      expect(
+        screen.getByRole("button", { name: moveUpLabel("Alquiler") }),
+      ).toBeEnabled();
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: moveUpLabel("Coche") }),
+    );
+    await waitFor(() => {
+      expect(expenseRowNames()).toEqual([
+        "Supermercado",
+        "Coche",
+        "Alquiler",
+        "Tabaco",
+      ]);
+      expect(
+        screen.getByRole("button", { name: moveDownLabel("Coche") }),
+      ).toBeEnabled();
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: moveDownLabel("Supermercado") }),
+    );
+    await waitFor(() => {
+      expect(expenseRowNames()).toEqual([
+        "Coche",
+        "Supermercado",
+        "Alquiler",
+        "Tabaco",
+      ]);
+    });
+
+    const putBodies = fetchImpl.mock.calls
+      .filter((call) => call[1]?.method === "PUT")
+      .map((call) => JSON.parse(String(call[1]?.body)));
+    expect(putBodies).toEqual([
+      {
+        type: "expense",
+        orderedCategoryIds: [
+          supermarketCategory.id,
+          expenseCategory.id,
+          carCategory.id,
+        ],
+      },
+      {
+        type: "expense",
+        orderedCategoryIds: [
+          supermarketCategory.id,
+          carCategory.id,
+          expenseCategory.id,
+        ],
+      },
+      {
+        type: "expense",
+        orderedCategoryIds: [
+          carCategory.id,
+          supermarketCategory.id,
+          expenseCategory.id,
+        ],
+      },
+    ]);
+  }, 15_000);
+
+  it("applies an optimistic order, disables controls while pending and rolls back on save failure", async () => {
+    const user = userEvent.setup();
+    let release!: (response: Response) => void;
+    let putCount = 0;
+    let categories = [
+      expenseCategory,
+      supermarketCategory,
+      archivedExpenseCategory,
+    ];
+    const fetchImpl = vi.fn<FetchLike>((input, init) => {
+      const method = init?.method ?? "GET";
+
+      if (input.startsWith("/api/tags")) {
+        return Promise.resolve(dataResponse([activeTag]));
+      }
+
+      if (method === "PUT" && input === "/api/categories/order") {
+        putCount += 1;
+        if (putCount === 1) {
+          return new Promise<Response>((resolve) => {
+            release = resolve;
+          });
+        }
+
+        categories = [
+          supermarketCategory,
+          expenseCategory,
+          archivedExpenseCategory,
+        ];
+        return Promise.resolve(dataResponse(categories));
+      }
+
+      return Promise.resolve(dataResponse(categories));
+    });
+
+    renderList(fetchImpl);
+    await screen.findByText("Alquiler");
+
+    await user.click(
+      screen.getByRole("button", { name: moveDownLabel("Alquiler") }),
+    );
+
+    expect(expenseRowNames()).toEqual(["Supermercado", "Alquiler", "Tabaco"]);
+    expect(
+      screen.getByRole("button", { name: moveUpLabel("Alquiler") }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: moveDownLabel("Alquiler") }),
+    ).toBeDisabled();
+
+    release(
+      errorResponse(
+        500,
+        "internalError",
+        "Se ha producido un error inesperado.",
+      ),
+    );
+
+    expect(await screen.findByText(orderControlsCopy.saveFailed)).toBeVisible();
+    expect(expenseRowNames()).toEqual(["Alquiler", "Supermercado", "Tabaco"]);
+
+    await user.click(
+      screen.getByRole("button", { name: orderControlsCopy.retry }),
+    );
+    await waitFor(() => {
+      expect(expenseRowNames()).toEqual(["Supermercado", "Alquiler", "Tabaco"]);
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("reaches order controls from the keyboard", async () => {
+    const user = userEvent.setup();
+    renderList(
+      routedFetch({
+        categories: [
+          () => dataResponse([expenseCategory, supermarketCategory]),
+        ],
+        tags: [() => dataResponse([])],
+      }),
+    );
+
+    await screen.findByText("Alquiler");
+    await user.tab();
+    expect(
+      screen.getByRole("button", { name: classificationCopy.createCategory }),
+    ).toHaveFocus();
+    await user.tab();
+    expect(
+      screen.getByRole("button", { name: moveDownLabel("Alquiler") }),
+    ).toHaveFocus();
+    await user.tab();
+    expect(
+      screen.getByRole("button", { name: renameCategoryLabel("Alquiler") }),
+    ).toHaveFocus();
+  });
+
+  it("cancels archive without calling the API and keeps the active row", async () => {
+    const user = userEvent.setup();
+    const fetchImpl = vi.fn<FetchLike>((input, init) => {
+      if (init?.method === "POST") {
+        throw new Error("archive should not run on cancel");
+      }
+
+      if (String(input).startsWith("/api/tags")) {
+        return Promise.resolve(dataResponse([activeTag]));
+      }
+
+      return Promise.resolve(dataResponse([expenseCategory]));
+    });
+
+    renderList(fetchImpl);
+    await screen.findByText("Alquiler");
+
+    await user.click(
+      screen.getByRole("button", { name: archiveCategoryLabel("Alquiler") }),
+    );
+    expect(
+      screen.getByRole("dialog", {
+        name: archiveDialogCopy.categoryTitle("Alquiler"),
+      }),
+    ).toHaveAccessibleDescription(
+      archiveDialogCopy.categoryDescription("Alquiler"),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: archiveDialogCopy.cancel }),
+    );
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: archiveCategoryLabel("Alquiler") }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(classificationCopy.archivedBadge),
+    ).not.toBeInTheDocument();
+  });
+
+  it("archives a category, keeps the historical row and restores focus after refresh", async () => {
+    const user = userEvent.setup();
+    let categories = [expenseCategory];
+    const fetchImpl = vi.fn<FetchLike>((input, init) => {
+      const method = init?.method ?? "GET";
+
+      if (String(input).startsWith("/api/tags")) {
+        return Promise.resolve(dataResponse([activeTag]));
+      }
+
+      if (
+        method === "POST" &&
+        input === `/api/categories/${expenseCategory.id}/archive`
+      ) {
+        expect(init?.body).toBe("{}");
+        categories = [{ ...expenseCategory, isArchived: true }];
+        return Promise.resolve(dataResponse(categories[0]));
+      }
+
+      return Promise.resolve(dataResponse(categories));
+    });
+
+    renderList(fetchImpl);
+    await screen.findByText("Alquiler");
+
+    await user.click(
+      screen.getByRole("button", { name: archiveCategoryLabel("Alquiler") }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: archiveDialogCopy.confirm }),
+    );
+
+    expect(
+      await screen.findByText(classificationCopy.archivedBadge),
+    ).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Alquiler")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: archiveCategoryLabel("Alquiler") }),
+    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: renameCategoryLabel("Alquiler") }),
+      ).toHaveFocus();
+    });
+  });
+
+  it("keeps a 409 archive conflict visible and actionable without hiding the row", async () => {
+    const user = userEvent.setup();
+    const fetchImpl = vi.fn<FetchLike>((input, init) => {
+      const method = init?.method ?? "GET";
+
+      if (String(input).startsWith("/api/tags")) {
+        return Promise.resolve(dataResponse([activeTag]));
+      }
+
+      if (method === "POST" && String(input).includes("/archive")) {
+        return Promise.resolve(
+          errorResponse(
+            409,
+            "conflict",
+            "El estado actual del recurso no permite esta operación.",
+          ),
+        );
+      }
+
+      return Promise.resolve(dataResponse([expenseCategory]));
+    });
+
+    renderList(fetchImpl);
+    await screen.findByText("Alquiler");
+
+    await user.click(
+      screen.getByRole("button", { name: archiveCategoryLabel("Alquiler") }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: archiveDialogCopy.confirm }),
+    );
+
+    expect(
+      await screen.findByText(archiveDialogCopy.conflictCategory),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", {
+        name: archiveDialogCopy.viewCategoryHistory("Alquiler"),
+      }),
+    ).toHaveAttribute("href", `/transactions?categoryId=${expenseCategory.id}`);
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(
+      within(
+        screen.getByRole("list", {
+          name: classificationCopy.expenseTitle,
+          hidden: true,
+        }),
+      ).getByText("Alquiler"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: archiveCategoryLabel("Alquiler"),
+        hidden: true,
+      }),
+    ).toBeInTheDocument();
   });
 });

@@ -40,6 +40,7 @@ export const classificationCopy = {
   createCategory: "Crear categoría",
   createTag: "Crear etiqueta",
   renameAction: "Renombrar",
+  archiveAction: "Archivar",
 } as const;
 
 /** Accessible name of the control that opens the category rename dialog. */
@@ -50,6 +51,16 @@ export function renameCategoryLabel(name: string): string {
 /** Accessible name of the control that opens the tag rename dialog. */
 export function renameTagLabel(name: string): string {
   return `Renombrar ${name}`;
+}
+
+/** Accessible name of the control that opens the category archive dialog. */
+export function archiveCategoryLabel(name: string): string {
+  return `Archivar ${name}`;
+}
+
+/** Accessible name of the control that opens the tag archive dialog. */
+export function archiveTagLabel(name: string): string {
+  return `Archivar ${name}`;
 }
 
 /** Wording of every failure the transport can hand to the view. */

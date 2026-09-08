@@ -10,6 +10,8 @@ import { describe, expect, it } from "vitest";
 import type { ApiClientFailure } from "../../../shared/client/api-client";
 import {
   activeArchivedSummary,
+  archiveCategoryLabel,
+  archiveTagLabel,
   classificationFailureCopy,
   classificationFailureMessage,
   renameCategoryLabel,
@@ -65,6 +67,13 @@ describe("rename labels", () => {
   it("identifies the row being renamed without mixing English identifiers", () => {
     expect(renameCategoryLabel("Alquiler")).toBe("Renombrar Alquiler");
     expect(renameTagLabel("Vacaciones")).toBe("Renombrar Vacaciones");
+  });
+});
+
+describe("archive labels", () => {
+  it("identifies the row being archived without mixing English identifiers", () => {
+    expect(archiveCategoryLabel("Alquiler")).toBe("Archivar Alquiler");
+    expect(archiveTagLabel("Vacaciones")).toBe("Archivar Vacaciones");
   });
 });
 
