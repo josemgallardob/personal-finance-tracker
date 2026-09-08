@@ -21,7 +21,13 @@ import {
   createTag,
 } from "../../../src/modules/classification/domain/tag";
 import { sqliteTagRepository } from "../../../src/modules/classification/infrastructure/sqlite-tag-repository";
+import {
+  type Transaction,
+  createTransaction,
+} from "../../../src/modules/transactions/domain/transaction";
 import type { TransactionType } from "../../../src/modules/transactions/domain/transaction-type";
+import { sqliteTransactionRepository } from "../../../src/modules/transactions/infrastructure/sqlite-transaction-repository";
+import { runInTransaction } from "../../../src/modules/transactions/infrastructure/sqlite-unit-of-work";
 import {
   type EnvSource,
   loadAppConfig,
@@ -140,6 +146,56 @@ export function storeTag(fixture: HttpFixture, name: string): Tag {
 
   if (!inserted.ok) {
     throw new Error(`Expected a stored tag: ${JSON.stringify(inserted)}`);
+  }
+
+  return inserted.value;
+}
+
+/** Values a stored test movement is built from. */
+export interface StoredTransactionDraft {
+  readonly category: Category;
+  readonly amountMinor?: number;
+  readonly date?: string;
+  readonly concept?: string | null;
+  readonly note?: string | null;
+  readonly tagIds?: readonly string[];
+  readonly createdAt?: number;
+  readonly updatedAt?: number;
+}
+
+/** Stores a movement through the real transaction adapter. */
+export function storeTransaction(
+  fixture: HttpFixture,
+  draft: StoredTransactionDraft,
+): Transaction {
+  const built = createTransaction({
+    id: randomUUID(),
+    type: draft.category.type,
+    amountMinor: draft.amountMinor ?? 1_250,
+    date: draft.date ?? "2026-09-06",
+    category: draft.category,
+    concept: draft.concept ?? null,
+    note: draft.note ?? null,
+    tagIds: draft.tagIds ?? [],
+    createdAt: draft.createdAt ?? 1_746_268_800_000,
+    updatedAt: draft.updatedAt ?? 1_746_268_800_000,
+  });
+
+  if (!built.ok) {
+    throw new Error(`Expected a valid transaction: ${JSON.stringify(built)}`);
+  }
+
+  const inserted = runInTransaction(fixture.connection, (unit) =>
+    sqliteTransactionRepository.insertTransaction(unit, {
+      workspaceId: fixture.workspaceId,
+      transaction: built.value,
+    }),
+  );
+
+  if (!inserted.ok) {
+    throw new Error(
+      `Expected a stored transaction: ${JSON.stringify(inserted)}`,
+    );
   }
 
   return inserted.value;
