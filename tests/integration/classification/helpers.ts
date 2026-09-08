@@ -42,7 +42,13 @@ export interface ClassificationFixture {
   cleanup(): void;
 }
 
-/** Opens a temporary file, applies the committed migrations and bootstraps it. */
+/**
+ * Opens a temporary file, applies the committed migrations and bootstraps it.
+ *
+ * The accepted category catalog is left out on purpose: these fixtures prove
+ * repository behaviour with the caller's own rows, without colliding with the
+ * seed identifiers. Catalog seeding is covered by its own tests.
+ */
 export function createClassificationFixture(): ClassificationFixture {
   const file = createTemporarySqliteFile();
   const config = loadAppConfig(createValidAppEnv(file.filePath));
@@ -61,6 +67,7 @@ export function createClassificationFixture(): ClassificationFixture {
 
   const initialized = initializeDatabase(opened.value, {
     now: () => 1_746_268_800_000,
+    seedCategories: false,
   });
 
   if (!initialized.ok) {
