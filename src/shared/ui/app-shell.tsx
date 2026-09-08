@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { FinancialDataProvider } from "../client/financial-data-provider";
 import { cx } from "./class-names";
 
 export const appShellCopy = {
@@ -77,31 +78,33 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
 
   return (
-    <div className="bg-surface text-text min-h-screen w-full max-w-full">
-      <a
-        className="bg-primary text-text sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:px-3 focus:py-2"
-        href="#contenido-principal"
-      >
-        {appShellCopy.skipToContent}
-      </a>
-      <aside className="border-border bg-surface-deep hidden min-h-screen w-48 max-w-full flex-col gap-6 border-r p-4 sm:fixed sm:inset-y-0 sm:left-0 sm:flex">
-        <p className="text-body font-semibold">{appShellCopy.brand}</p>
-        <nav aria-label={appShellCopy.navLabel}>
-          <NavigationList pathname={pathname} variant="side" />
+    <FinancialDataProvider>
+      <div className="bg-surface text-text min-h-screen w-full max-w-full">
+        <a
+          className="bg-primary text-text sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:px-3 focus:py-2"
+          href="#contenido-principal"
+        >
+          {appShellCopy.skipToContent}
+        </a>
+        <aside className="border-border bg-surface-deep hidden min-h-screen w-48 max-w-full flex-col gap-6 border-r p-4 sm:fixed sm:inset-y-0 sm:left-0 sm:flex">
+          <p className="text-body font-semibold">{appShellCopy.brand}</p>
+          <nav aria-label={appShellCopy.navLabel}>
+            <NavigationList pathname={pathname} variant="side" />
+          </nav>
+        </aside>
+        <nav
+          aria-label={appShellCopy.navLabel}
+          className="border-border bg-surface-deep fixed inset-x-0 bottom-0 z-40 w-full max-w-full border-t p-2 sm:hidden"
+        >
+          <NavigationList pathname={pathname} variant="bottom" />
         </nav>
-      </aside>
-      <nav
-        aria-label={appShellCopy.navLabel}
-        className="border-border bg-surface-deep fixed inset-x-0 bottom-0 z-40 w-full max-w-full border-t p-2 sm:hidden"
-      >
-        <NavigationList pathname={pathname} variant="bottom" />
-      </nav>
-      <main
-        id="contenido-principal"
-        className="w-full max-w-full min-w-0 px-4 py-6 pb-24 sm:pb-6 sm:pl-52"
-      >
-        {children}
-      </main>
-    </div>
+        <main
+          id="contenido-principal"
+          className="w-full max-w-full min-w-0 px-4 py-6 pb-24 sm:pb-6 sm:pl-52"
+        >
+          {children}
+        </main>
+      </div>
+    </FinancialDataProvider>
   );
 }
