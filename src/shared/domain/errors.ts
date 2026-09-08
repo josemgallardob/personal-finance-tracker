@@ -16,6 +16,7 @@ export type DomainErrorCode =
   | "invalidSortOrder"
   | "invalidTimestamp"
   | "invalidDate"
+  | "futureDate"
   | "invalidAmount"
   | "duplicateTag"
   | "tooManyTags"
