@@ -34,6 +34,8 @@ export const DOMAIN_ERROR_API_CODE: Readonly<
   invalidTransactionType: "validationFailed",
   invalidSortOrder: "validationFailed",
   invalidTimestamp: "validationFailed",
+  invalidMonthlyDay: "validationFailed",
+  invalidTemplateVersion: "validationFailed",
   invalidDate: "validationFailed",
   futureDate: "validationFailed",
   invalidAmount: "validationFailed",
@@ -46,6 +48,7 @@ export const DOMAIN_ERROR_API_CODE: Readonly<
   notFound: "notFound",
   duplicateName: "conflict",
   alreadyArchived: "conflict",
+  alreadyDeactivated: "conflict",
   archived: "conflict",
   unavailable: "serviceUnavailable",
 });

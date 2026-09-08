@@ -97,11 +97,14 @@ describe("applyMigrations", () => {
     expect(
       connection.sqlite
         .prepare(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('workspace', 'category', 'tag', 'transaction', 'transaction_tag') ORDER BY name",
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('workspace', 'category', 'tag', 'transaction', 'transaction_tag', 'recurring_rule', 'recurring_rule_tag', 'recurring_occurrence') ORDER BY name",
         )
         .all(),
     ).toEqual([
       { name: "category" },
+      { name: "recurring_occurrence" },
+      { name: "recurring_rule" },
+      { name: "recurring_rule_tag" },
       { name: "tag" },
       { name: "transaction" },
       { name: "transaction_tag" },

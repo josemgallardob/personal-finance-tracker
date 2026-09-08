@@ -28,6 +28,8 @@ describe("DOMAIN_ERROR_API_CODE", () => {
     "invalidTransactionType",
     "invalidSortOrder",
     "invalidTimestamp",
+    "invalidMonthlyDay",
+    "invalidTemplateVersion",
     "invalidDate",
     "futureDate",
     "invalidAmount",
@@ -45,12 +47,14 @@ describe("DOMAIN_ERROR_API_CODE", () => {
     expect(statusOf(DOMAIN_ERROR_API_CODE.notFound)).toBe(404);
   });
 
-  it.each(["duplicateName", "alreadyArchived", "archived"] as const)(
-    "reports %s as a conflict",
-    (code) => {
-      expect(statusOf(DOMAIN_ERROR_API_CODE[code])).toBe(409);
-    },
-  );
+  it.each([
+    "duplicateName",
+    "alreadyArchived",
+    "alreadyDeactivated",
+    "archived",
+  ] as const)("reports %s as a conflict", (code) => {
+    expect(statusOf(DOMAIN_ERROR_API_CODE[code])).toBe(409);
+  });
 
   it("reports unusable storage as 503", () => {
     expect(statusOf(DOMAIN_ERROR_API_CODE.unavailable)).toBe(503);

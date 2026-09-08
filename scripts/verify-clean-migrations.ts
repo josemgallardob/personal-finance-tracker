@@ -28,6 +28,9 @@ const EXPECTED_TABLES = [
   "tag",
   "transaction",
   "transaction_tag",
+  "recurring_rule",
+  "recurring_rule_tag",
+  "recurring_occurrence",
 ] as const;
 
 /** Table where the migration runner records finished files. */

@@ -12,6 +12,7 @@ export const COMMITTED_MIGRATION_TAGS = [
   "0000_workspace_and_preference",
   "0001_classification_and_transactions",
   "0002_require_integer_amount_minor",
+  "0003_recurring_rules_and_occurrences",
 ] as const;
 
 /** Isolated folder that looks like a drizzle-kit output directory. */
