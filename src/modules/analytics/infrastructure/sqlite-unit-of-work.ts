@@ -21,6 +21,7 @@ import {
   type AnalyticsResult,
   failed,
 } from "../application/ports/analytics-repository";
+import type { AnalyticsSnapshotRunner } from "../application/ports/analytics-snapshot";
 import type { UnitOfWork } from "../application/ports/unit-of-work";
 import { describeCause } from "./sqlite-errors";
 
@@ -65,4 +66,15 @@ export function runInReadSnapshot<TValue>(
   } catch (cause) {
     return failed("storageFailure", describeCause(cause));
   }
+}
+
+/** Snapshot runner the dashboard services use for one consistent response. */
+export function sqliteAnalyticsSnapshotRunner(
+  connection: SqliteConnection,
+): AnalyticsSnapshotRunner<SqliteUnitOfWork> {
+  return {
+    runInSnapshot(work) {
+      return runInReadSnapshot(connection, work);
+    },
+  };
 }

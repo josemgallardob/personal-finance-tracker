@@ -125,6 +125,61 @@ export function subtractMoneyMinor(
 }
 
 /**
+ * Divides two exact integers and rounds to the nearest integer, with a tie
+ * moving away from zero.
+ *
+ * This is the presentation rounding of a monthly average and of a percentage
+ * change: the exact numerator and divisor stay elsewhere, and only the figure
+ * that will be painted is rounded. Half of a cent of a negative average still
+ * moves away from zero, so −500,005 € becomes −500,01 € rather than −500,00 €.
+ */
+export function roundDivisionHalfAwayFromZero(
+  numerator: number,
+  divisor: number,
+): MoneyResult<number> {
+  if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(divisor)) {
+    return failed("notSafeInteger");
+  }
+
+  if (divisor === 0) {
+    return failed("overflow");
+  }
+
+  const sign =
+    (numerator < 0 ? BigInt(-1) : BigInt(1)) *
+    (divisor < 0 ? BigInt(-1) : BigInt(1));
+  const quotient = absBigInt(numerator) / absBigInt(divisor);
+  const remainder = absBigInt(numerator) % absBigInt(divisor);
+  const rounded =
+    remainder * BigInt(2) >= absBigInt(divisor)
+      ? quotient + BigInt(1)
+      : quotient;
+
+  return ok(Number(sign * rounded));
+}
+
+/**
+ * Presentation of an exact average: the total of minor units divided by the
+ * month count, rounded to the nearest cent with halves away from zero.
+ */
+export function presentAverageMinor(
+  totalMinor: MoneyMinor,
+  monthCount: number,
+): MoneyResult<MoneyMinor> {
+  const rounded = roundDivisionHalfAwayFromZero(totalMinor, monthCount);
+
+  if (!rounded.ok) {
+    return rounded;
+  }
+
+  return toMoneyMinor(rounded.value);
+}
+
+function absBigInt(value: number): bigint {
+  return BigInt(Math.abs(value));
+}
+
+/**
  * Formats an exact amount of minor units with a locale-aware formatter.
  *
  * The amount is split into whole units and cents from its digits, so no

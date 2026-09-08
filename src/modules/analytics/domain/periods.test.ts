@@ -13,6 +13,7 @@ import {
   LAST_MONTHS_PRESET_MONTHS,
   type DashboardPeriod,
   averageWindow,
+  dateRangeOfMonthWindow,
   evolutionWindow,
   resolveComparisonWindow,
   resolvePeriod,
@@ -586,6 +587,36 @@ describe("averageWindow", () => {
       end: month("0001-02"),
       months: months("0001-02"),
       monthCount: 1,
+    });
+  });
+});
+
+describe("dateRangeOfMonthWindow", () => {
+  it("spans the first day of the start month through the last day of the end month", () => {
+    expect(
+      dateRangeOfMonthWindow({
+        start: month("2026-02"),
+        end: month("2026-04"),
+        months: months("2026-02", "2026-03", "2026-04"),
+        monthCount: 3,
+      }),
+    ).toEqual({
+      start: date("2026-02-01"),
+      end: date("2026-04-30"),
+    });
+  });
+
+  it("keeps the last day of a leap February", () => {
+    expect(
+      dateRangeOfMonthWindow({
+        start: month("2024-02"),
+        end: month("2024-02"),
+        months: months("2024-02"),
+        monthCount: 1,
+      }),
+    ).toEqual({
+      start: date("2024-02-01"),
+      end: date("2024-02-29"),
     });
   });
 });

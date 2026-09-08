@@ -437,3 +437,20 @@ export function averageWindow(
     ...monthWindow(Math.max(earliest, firstClosedMonth), endMonth),
   };
 }
+
+/**
+ * Inclusive civil-date interval covered by a window of natural months.
+ *
+ * The averages read the whole closed months of their window, so the interval
+ * always starts on the first day of {@link MonthWindow.start} and always ends
+ * on the last day of {@link MonthWindow.end}.
+ */
+export function dateRangeOfMonthWindow(window: MonthWindow): DateRange {
+  const startMonth = monthIndexOfMonth(window.start);
+  const endMonth = monthIndexOfMonth(window.end);
+
+  return {
+    start: localDateAt(startMonth, 1),
+    end: localDateAt(endMonth, daysInMonthAt(endMonth)),
+  };
+}
