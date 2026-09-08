@@ -16,6 +16,7 @@ export type DomainErrorCode =
   | "invalidSortOrder"
   | "invalidTimestamp"
   | "invalidDate"
+  | "futureDate"
   | "invalidAmount"
   | "duplicateTag"
   | "tooManyTags"
@@ -24,7 +25,10 @@ export type DomainErrorCode =
   | "alreadyArchived"
   | "notFound"
   | "archived"
-  | "unavailable";
+  | "unavailable"
+  | "invalidCursor"
+  | "invalidLimit"
+  | "incompatibleFilters";
 
 /** Rejected field and the reason why it was rejected. */
 export interface DomainError {
