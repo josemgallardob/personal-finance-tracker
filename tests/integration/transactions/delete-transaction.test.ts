@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { category, tag, transactionTag } from "../../../db/schema";
 import { createCreateTransaction } from "../../../src/modules/transactions/application/create-transaction";
 import { createDeleteTransaction } from "../../../src/modules/transactions/application/delete-transaction";
+import { sqliteRecurringOccurrenceRepository } from "../../../src/modules/recurring/infrastructure/sqlite-recurring-occurrence-repository";
 import { sqliteCategoryRepository } from "../../../src/modules/classification/infrastructure/sqlite-category-repository";
 import { sqliteTagRepository } from "../../../src/modules/classification/infrastructure/sqlite-tag-repository";
 import { sqliteTransactionRepository } from "../../../src/modules/transactions/infrastructure/sqlite-transaction-repository";
@@ -91,6 +92,7 @@ function remove(transactionId: string, scope = workspaceId) {
   return run((unit) =>
     createDeleteTransaction({
       transactions: sqliteTransactionRepository,
+      occurrences: sqliteRecurringOccurrenceRepository,
     }).execute(unit, { workspaceId: scope, transactionId }),
   );
 }

@@ -12,6 +12,7 @@ import "server-only";
 
 import type { z } from "zod";
 
+import { sqliteRecurringOccurrenceRepository } from "../../recurring/infrastructure/sqlite-recurring-occurrence-repository";
 import { sqliteCategoryRepository } from "../../classification/infrastructure/sqlite-category-repository";
 import { sqliteTagRepository } from "../../classification/infrastructure/sqlite-tag-repository";
 import type { Clock } from "../../../shared/domain/clock";
@@ -82,6 +83,7 @@ function writeServices(deps: TransactionHttpDeps) {
     }),
     remove: createDeleteTransaction({
       transactions: sqliteTransactionRepository,
+      occurrences: sqliteRecurringOccurrenceRepository,
     }),
   };
 }

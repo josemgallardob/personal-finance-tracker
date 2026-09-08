@@ -1,6 +1,6 @@
 # Diseño técnico
 
-**Estado:** aceptado v1.8 para el MVP
+**Estado:** aceptado v1.9 para el MVP
 
 **Enfoque:** monolito modular privado, desplegable como una única aplicación.
 
@@ -31,13 +31,13 @@ despliegue y queda fuera del alcance acordado.
 
 ## Módulos
 
-| Módulo | Responsabilidad |
-| --- | --- |
-| Movimientos | altas, edición, eliminación, duplicado, listado y búsqueda |
-| Clasificación | categorías, etiquetas y sus asociaciones |
-| Analítica | agregaciones por periodo, tipo, categoría y etiqueta |
-| Recurrencias | plantillas mensuales, generación idempotente y desactivación |
-| Preferencias | locale, moneda, zona horaria y datos de demostración |
+| Módulo        | Responsabilidad                                              |
+| ------------- | ------------------------------------------------------------ |
+| Movimientos   | altas, edición, eliminación, duplicado, listado y búsqueda   |
+| Clasificación | categorías, etiquetas y sus asociaciones                     |
+| Analítica     | agregaciones por periodo, tipo, categoría y etiqueta         |
+| Recurrencias  | plantillas mensuales, generación idempotente y desactivación |
+| Preferencias  | locale, moneda, zona horaria y datos de demostración         |
 
 La UI accede a casos de uso, no directamente a tablas. No se introducen colas,
 cachés distribuidas, workers ni servicios separados.
@@ -283,6 +283,13 @@ La tarea se ejecuta al menos diariamente y también al arrancar la aplicación. 
 dashboard solo consulta movimientos materializados; una regla nunca cuenta como
 gasto o ingreso previsto. La tarea recorre únicamente el conjunto de datos
 personales.
+
+El arranque del proceso Node llama a esa recuperación antes de servir peticiones,
+nunca durante `next build` ni en el runtime Edge. El comando `npm run recurring:run`
+imprime una sola línea JSON con recuentos y un código de motivo cerrado, sin
+rutas, importes ni conceptos. La instalación del temporizador (cron o el
+equivalente del anfitrión) pertenece a operaciones; este repositorio no instala
+ni arranca un planificador.
 
 Borrar un movimiento generado elimina el movimiento y sus asociaciones, pero
 conserva su `RecurringOccurrence` con el enlace a nulo, de modo que esa fecha

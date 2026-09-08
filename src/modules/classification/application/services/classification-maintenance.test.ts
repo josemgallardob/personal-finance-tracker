@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { createCategory } from "../../domain/category";
 import { createTag } from "../../domain/tag";
 import { failed, succeeded } from "../ports/classification-repository";
+import {
+  failed as recurringFailed,
+  succeeded as recurringSucceeded,
+} from "../../../recurring/application/ports/recurring-repository";
 import type { CategoryRepository } from "../ports/category-repository";
 import type { TagRepository } from "../ports/tag-repository";
 import type { UnitOfWork } from "../ports/unit-of-work";
@@ -321,6 +325,175 @@ describe("classification maintenance error translation", () => {
     ).toEqual({
       ok: false,
       errors: [{ field: "name", code: "required" }],
+    });
+  });
+});
+
+describe("archive protection of active recurrences", () => {
+  it("identifies the active rule that still uses the category", () => {
+    const maintenance = createClassificationMaintenance({
+      categories: categories(),
+      tags: tags(),
+      rules: {
+        findActiveRuleByCategory: () =>
+          recurringSucceeded({ rule: { id: "rule-rent" } } as never),
+        findActiveRuleByTag: unused,
+      },
+    });
+
+    expect(
+      maintenance.archiveCategory(unit, {
+        workspaceId: "workspace-1",
+        categoryId: "category-1",
+      }),
+    ).toEqual({
+      ok: false,
+      errors: [
+        { field: "categoryId", code: "usedByActiveRule" },
+        { field: "rule-rent", code: "usedByActiveRule" },
+      ],
+    });
+  });
+
+  it("refuses a guarded archive outside a transaction", () => {
+    const maintenance = createClassificationMaintenance({
+      categories: categories(),
+      tags: tags(),
+      rules: {
+        findActiveRuleByCategory: unused,
+        findActiveRuleByTag: unused,
+      },
+    });
+
+    expect(
+      maintenance.archiveCategory(autocommit, {
+        workspaceId: "workspace-1",
+        categoryId: "category-1",
+      }),
+    ).toEqual({
+      ok: false,
+      errors: [{ field: "storage", code: "unavailable" }],
+    });
+  });
+
+  it("identifies the active rule that still uses the tag", () => {
+    const maintenance = createClassificationMaintenance({
+      categories: categories(),
+      tags: tags(),
+      rules: {
+        findActiveRuleByCategory: unused,
+        findActiveRuleByTag: () =>
+          recurringSucceeded({ rule: { id: "rule-netflix" } } as never),
+      },
+    });
+
+    expect(
+      maintenance.archiveTag(unit, {
+        workspaceId: "workspace-1",
+        tagId: "tag-1",
+      }),
+    ).toEqual({
+      ok: false,
+      errors: [
+        { field: "tagId", code: "usedByActiveRule" },
+        { field: "rule-netflix", code: "usedByActiveRule" },
+      ],
+    });
+  });
+
+  it("refuses a guarded tag archive outside a transaction", () => {
+    const maintenance = createClassificationMaintenance({
+      categories: categories(),
+      tags: tags(),
+      rules: {
+        findActiveRuleByCategory: unused,
+        findActiveRuleByTag: unused,
+      },
+    });
+
+    expect(
+      maintenance.archiveTag(autocommit, {
+        workspaceId: "workspace-1",
+        tagId: "tag-1",
+      }),
+    ).toEqual({
+      ok: false,
+      errors: [{ field: "storage", code: "unavailable" }],
+    });
+  });
+
+  it("archives when no active rule still uses the classification", () => {
+    const category = createCategory({
+      id: "category-1",
+      name: "Casa",
+      type: "expense",
+      sortOrder: 0,
+      archivedAt: 1_746_268_800_000,
+    });
+    const tag = createTag({
+      id: "tag-1",
+      name: "Navidad",
+      archivedAt: 1_746_268_800_000,
+    });
+
+    if (!category.ok || !tag.ok) {
+      throw new Error("Expected valid fixtures");
+    }
+
+    const maintenance = createClassificationMaintenance({
+      categories: categories({
+        archiveCategory: () => succeeded(category.value),
+      }),
+      tags: tags({
+        archiveTag: () => succeeded(tag.value),
+      }),
+      rules: {
+        findActiveRuleByCategory: () => recurringSucceeded(null),
+        findActiveRuleByTag: () => recurringSucceeded(null),
+      },
+    });
+
+    expect(
+      maintenance.archiveCategory(unit, {
+        workspaceId: "workspace-1",
+        categoryId: "category-1",
+      }),
+    ).toEqual({ ok: true, value: category.value });
+    expect(
+      maintenance.archiveTag(unit, {
+        workspaceId: "workspace-1",
+        tagId: "tag-1",
+      }),
+    ).toEqual({ ok: true, value: tag.value });
+  });
+
+  it("translates a failed active-rule lookup into unusable storage", () => {
+    const maintenance = createClassificationMaintenance({
+      categories: categories(),
+      tags: tags(),
+      rules: {
+        findActiveRuleByCategory: () => recurringFailed("storageFailure"),
+        findActiveRuleByTag: () => recurringFailed("storageFailure"),
+      },
+    });
+
+    expect(
+      maintenance.archiveCategory(unit, {
+        workspaceId: "workspace-1",
+        categoryId: "category-1",
+      }),
+    ).toEqual({
+      ok: false,
+      errors: [{ field: "storage", code: "unavailable" }],
+    });
+    expect(
+      maintenance.archiveTag(unit, {
+        workspaceId: "workspace-1",
+        tagId: "tag-1",
+      }),
+    ).toEqual({
+      ok: false,
+      errors: [{ field: "storage", code: "unavailable" }],
     });
   });
 });

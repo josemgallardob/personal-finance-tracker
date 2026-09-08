@@ -29,6 +29,7 @@ import {
   storeCategory,
   type HttpFixture,
 } from "./helpers";
+import { storeRule } from "../recurring/helpers";
 
 const NOW = 1_746_268_800_000;
 const FOREIGN_ID = "foreign-category-id";
@@ -414,6 +415,35 @@ describe("POST /api/categories/[id]/archive", () => {
         error: {
           code: "conflict",
           details: [{ field: "categoryId", code: "alreadyArchived" }],
+        },
+      },
+    });
+  });
+
+  it("conflicts with the active rule that still uses the category", async () => {
+    const category = storeCategory(fixture, "Alquiler", "expense");
+    storeRule(fixture, {
+      id: "rule-rent",
+      category,
+      monthlyDay: 8,
+      nextDueDate: "2026-10-08",
+    });
+
+    const refused = await parse(
+      await createArchiveCategoryHandler(deps())(
+        jsonRequest("POST", `/api/categories/${category.id}/archive`, {}),
+      ),
+    );
+
+    expect(refused).toMatchObject({
+      status: 409,
+      body: {
+        error: {
+          code: "conflict",
+          details: [
+            { field: "categoryId", code: "usedByActiveRule" },
+            { field: "rule-rent", code: "usedByActiveRule" },
+          ],
         },
       },
     });

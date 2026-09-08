@@ -29,6 +29,7 @@ import {
   SCHEMA_MIGRATION_TABLE,
 } from "../../../src/shared/server/migrate";
 import {
+  COMMITTED_MIGRATION_TAGS,
   createTemporaryMigrationFolder,
   writeMigrationJournal,
 } from "../helpers/migrations";
@@ -45,6 +46,11 @@ const MIGRATIONS_BEFORE_UPGRADE = [
 
 /** Tag of the migration under test. */
 const AMOUNT_UPGRADE_TAG = "0002_require_integer_amount_minor";
+
+/** Files the upgrade applies, starting with the migration under test. */
+const MIGRATIONS_FROM_UPGRADE = COMMITTED_MIGRATION_TAGS.filter(
+  (tag) => !(MIGRATIONS_BEFORE_UPGRADE as readonly string[]).includes(tag),
+);
 
 const NOW = 1_746_268_800_000;
 const WORKSPACE_ID = "workspace-personal";
@@ -198,7 +204,9 @@ describe("integer amount upgrade", () => {
     const migrated = upgrade(connection);
 
     expect(migrated.ok).toBe(true);
-    expect(migrated.ok && migrated.value.applied).toEqual([AMOUNT_UPGRADE_TAG]);
+    expect(migrated.ok && migrated.value.applied).toEqual([
+      ...MIGRATIONS_FROM_UPGRADE,
+    ]);
     expect(migrated.ok && migrated.value.skipped).toEqual([
       ...MIGRATIONS_BEFORE_UPGRADE,
     ]);
