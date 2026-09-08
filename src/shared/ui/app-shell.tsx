@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
+import {
+  CreateTransactionDialog,
+  createTransactionDialogCopy,
+} from "../../modules/transactions/ui/create-dialog";
 import { FinancialDataProvider } from "../client/financial-data-provider";
+import { Button } from "./button";
 import { cx } from "./class-names";
 
 export const appShellCopy = {
@@ -28,6 +33,10 @@ export function isAppShellPathActive(pathname: string, href: string): boolean {
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function canCreateTransactionFromPath(pathname: string): boolean {
+  return pathname === "/" || isAppShellPathActive(pathname, "/transactions");
 }
 
 export interface AppShellProps {
@@ -76,6 +85,8 @@ function NavigationList({
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const [createOpen, setCreateOpen] = useState(false);
+  const showCreateAction = canCreateTransactionFromPath(pathname);
 
   return (
     <FinancialDataProvider>
@@ -91,6 +102,17 @@ export function AppShell({ children }: AppShellProps) {
           <nav aria-label={appShellCopy.navLabel}>
             <NavigationList pathname={pathname} variant="side" />
           </nav>
+          {showCreateAction ? (
+            <Button
+              className="mt-auto"
+              type="button"
+              onClick={() => {
+                setCreateOpen(true);
+              }}
+            >
+              {createTransactionDialogCopy.add}
+            </Button>
+          ) : null}
         </aside>
         <nav
           aria-label={appShellCopy.navLabel}
@@ -102,8 +124,24 @@ export function AppShell({ children }: AppShellProps) {
           id="contenido-principal"
           className="w-full max-w-full min-w-0 px-4 py-6 pb-24 sm:pb-6 sm:pl-52"
         >
+          {showCreateAction ? (
+            <div className="mb-4 sm:hidden">
+              <Button
+                type="button"
+                onClick={() => {
+                  setCreateOpen(true);
+                }}
+              >
+                {createTransactionDialogCopy.add}
+              </Button>
+            </div>
+          ) : null}
           {children}
         </main>
+        <CreateTransactionDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+        />
       </div>
     </FinancialDataProvider>
   );

@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "security:secrets": "secretlint --format github \"**/*\"",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run verify:clean-migrations && npm run verify:build-without-database && npm run security:secrets"
   },
@@ -38,6 +39,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.5",
     "@tailwindcss/postcss": "^4.2.1",
     "@testing-library/jest-dom": "^6.9.1",
