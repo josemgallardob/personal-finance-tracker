@@ -3,7 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { useFinancialDataRevision } from "../client/financial-data-provider";
-import { AppShell, appShellCopy, isAppShellPathActive } from "./app-shell";
+import {
+  AppShell,
+  appShellCopy,
+  canCreateTransactionFromPath,
+  isAppShellPathActive,
+} from "./app-shell";
+import { createTransactionDialogCopy } from "../../modules/transactions/ui/create-dialog";
 
 const { usePathname } = vi.hoisted(() => ({
   usePathname: vi.fn(() => "/"),
@@ -40,6 +46,15 @@ function FinancialRevisionReadout() {
   );
 }
 
+describe("canCreateTransactionFromPath", () => {
+  it("offers the add action on Inicio and Movimientos only", () => {
+    expect(canCreateTransactionFromPath("/")).toBe(true);
+    expect(canCreateTransactionFromPath("/transactions")).toBe(true);
+    expect(canCreateTransactionFromPath("/transactions/abc")).toBe(true);
+    expect(canCreateTransactionFromPath("/categories")).toBe(false);
+  });
+});
+
 describe("isAppShellPathActive", () => {
   it("marks only the home route as Inicio", () => {
     expect(isAppShellPathActive("/", "/")).toBe(true);
@@ -56,7 +71,7 @@ describe("isAppShellPathActive", () => {
 });
 
 describe("AppShell", () => {
-  it("exposes Spanish destinations without operational actions", () => {
+  it("exposes Spanish destinations and the add action on Inicio", () => {
     usePathname.mockReturnValue("/");
     render(
       <AppShell>
@@ -81,8 +96,11 @@ describe("AppShell", () => {
     }
 
     expect(
-      screen.queryByRole("button", { name: /añadir/i }),
-    ).not.toBeInTheDocument();
+      screen.getAllByRole("button", {
+        name: createTransactionDialogCopy.add,
+      }),
+    ).toHaveLength(2);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText(appShellCopy.brand)).toBeVisible();
     expect(
       screen.getByRole("link", { name: appShellCopy.skipToContent }),
@@ -106,6 +124,9 @@ describe("AppShell", () => {
     for (const link of homeLinks) {
       expect(link).not.toHaveAttribute("aria-current");
     }
+    expect(
+      screen.queryByRole("button", { name: createTransactionDialogCopy.add }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps navigation keyboard reachable at the 320 px width", async () => {
@@ -145,5 +166,28 @@ describe("AppShell", () => {
     );
 
     expect(screen.getByText("revision:0 epoch:0")).toBeVisible();
+  });
+
+  it("opens the create dialog from the shell add actions", async () => {
+    usePathname.mockReturnValue("/transactions");
+    const user = userEvent.setup();
+    render(
+      <AppShell>
+        <p>Historial</p>
+      </AppShell>,
+    );
+
+    const addButtons = screen.getAllByRole("button", {
+      name: createTransactionDialogCopy.add,
+    });
+    await user.click(addButtons[0]);
+    expect(
+      screen.getByRole("dialog", { name: "Nuevo movimiento" }),
+    ).toBeVisible();
+    await user.keyboard("{Escape}");
+    await user.click(addButtons[1]);
+    expect(
+      screen.getByRole("dialog", { name: "Nuevo movimiento" }),
+    ).toBeVisible();
   });
 });

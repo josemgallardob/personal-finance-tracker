@@ -29,6 +29,9 @@ export interface TransactionFormProps {
   readonly initialValues?: Partial<TransactionFormValues>;
   readonly onCancel?: () => void;
   readonly onSubmit: (body: TransactionWriteBody) => void | Promise<void>;
+  readonly onSubmitAndAddAnother?: (
+    body: TransactionWriteBody,
+  ) => void | Promise<void>;
   readonly pending?: boolean;
   readonly retainedCategoryId?: string;
   readonly retainedTagIds?: readonly string[];
@@ -68,6 +71,7 @@ export function TransactionForm({
   initialValues,
   onCancel,
   onSubmit,
+  onSubmitAndAddAnother,
   pending = false,
   retainedCategoryId,
   retainedTagIds,
@@ -111,9 +115,19 @@ export function TransactionForm({
     <form
       className="flex w-full max-w-full flex-col gap-4"
       noValidate
-      onSubmit={handleSubmit((values) =>
-        onSubmit(toTransactionWriteBody(values)),
-      )}
+      onSubmit={handleSubmit((values, event) => {
+        const submitter = (event?.nativeEvent as SubmitEvent | undefined)
+          ?.submitter;
+        const addAnother =
+          Boolean(onSubmitAndAddAnother) &&
+          submitter instanceof HTMLButtonElement &&
+          submitter.value === "add-another";
+        const body = toTransactionWriteBody(values);
+        if (addAnother && onSubmitAndAddAnother) {
+          return onSubmitAndAddAnother(body);
+        }
+        return onSubmit(body);
+      })}
     >
       <ErrorSummary errors={summaryErrors} />
       <Controller
@@ -292,11 +306,23 @@ export function TransactionForm({
             {transactionFormCopy.cancel}
           </Button>
         ) : null}
+        {onSubmitAndAddAnother ? (
+          <Button
+            disabled={pending}
+            name="intent"
+            pending={pending}
+            type="submit"
+            value="add-another"
+            variant="secondary"
+          >
+            {transactionFormCopy.saveAndAddAnother}
+          </Button>
+        ) : null}
         <Controller
           control={control}
           name="type"
           render={({ field }) => (
-            <Button pending={pending} type="submit">
+            <Button name="intent" pending={pending} type="submit" value="save">
               {submitLabel ??
                 (field.value === "income"
                   ? transactionFormCopy.submitIncome

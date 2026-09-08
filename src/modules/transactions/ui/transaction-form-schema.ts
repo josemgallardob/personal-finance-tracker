@@ -71,6 +71,7 @@ export const transactionFormCopy = {
   noteTooLong: "La nota no puede superar 2.000 caracteres",
   submitExpense: "Añadir gasto",
   submitIncome: "Añadir ingreso",
+  saveAndAddAnother: "Guardar y añadir otro",
   tagsDuplicate: "Esa etiqueta ya está en el movimiento",
   tagsTooMany: "Un movimiento admite como máximo 20 etiquetas",
   tagInvalid: "Introduce un nombre de etiqueta válido",
