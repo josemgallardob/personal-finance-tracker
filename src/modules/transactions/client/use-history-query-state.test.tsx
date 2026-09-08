@@ -1,11 +1,13 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useSyncExternalStore } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const historyNav = vi.hoisted(() => {
   let search = "tab=all";
+  let deferred = false;
   const stack: string[] = [];
+  const queue: Array<() => void> = [];
   const listeners = new Set<() => void>();
 
   return {
@@ -19,11 +21,30 @@ const historyNav = vi.hoisted(() => {
       return search;
     },
     push(href: string) {
-      stack.push(search);
-      search = new URL(href, "http://localhost").searchParams.toString();
-      listeners.forEach((listener) => {
-        listener();
-      });
+      const commit = () => {
+        stack.push(search);
+        search = new URL(href, "http://localhost").searchParams.toString();
+        listeners.forEach((listener) => {
+          listener();
+        });
+      };
+
+      if (deferred) {
+        queue.push(commit);
+        return;
+      }
+
+      commit();
+    },
+    /** Holds every push until {@link settle}, like a slow router commit. */
+    defer() {
+      deferred = true;
+    },
+    settle() {
+      const pushes = queue.splice(0, queue.length);
+      for (const commit of pushes) {
+        commit();
+      }
     },
     back() {
       const previous = stack.pop();
@@ -38,7 +59,9 @@ const historyNav = vi.hoisted(() => {
     },
     reset() {
       search = "tab=all";
+      deferred = false;
       stack.length = 0;
+      queue.length = 0;
     },
   };
 });
@@ -101,6 +124,14 @@ function QueryProbe() {
       </button>
       <button
         onClick={() => {
+          setState({ ...state, type: "expense" });
+        }}
+        type="button"
+      >
+        Solo gastos
+      </button>
+      <button
+        onClick={() => {
           historyNav.back();
         }}
         type="button"
@@ -144,5 +175,50 @@ describe("useHistoryQueryState", () => {
     expect(screen.getByText("q:Café & té")).toBeVisible();
     expect(screen.getByText("type:expense")).toBeVisible();
     expect(screen.getByText("tags:tag-trips,tag-home")).toBeVisible();
+  });
+
+  it("composes a change made while the router has not committed the previous one", async () => {
+    const user = userEvent.setup();
+    render(<QueryProbe />);
+
+    await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+    expect(screen.getByText("q:Café & té")).toBeVisible();
+
+    historyNav.defer();
+    await user.click(screen.getByRole("button", { name: "Quitar todos" }));
+
+    // The router still reports the previous URL, so only the requested filters
+    // can tell the next change what it must compose on.
+    expect(historyNav.getSnapshot()).toContain("Caf%C3%A9");
+    expect(screen.getByText("q:")).toBeVisible();
+    expect(screen.getByText("tags:")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Solo gastos" }));
+    act(() => {
+      historyNav.settle();
+    });
+
+    expect(screen.getByText("q:")).toBeVisible();
+    expect(screen.getByText("type:expense")).toBeVisible();
+    expect(screen.getByText("tags:")).toBeVisible();
+    expect(historyNav.getSnapshot()).toBe("tab=all&type=expense");
+  });
+
+  it("keeps the committed URL when a pending change is undone", async () => {
+    const user = userEvent.setup();
+    render(<QueryProbe />);
+
+    historyNav.defer();
+    await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+    expect(screen.getByText("q:Café & té")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Quitar todos" }));
+    act(() => {
+      historyNav.settle();
+    });
+
+    expect(screen.getByText("q:")).toBeVisible();
+    expect(screen.getByText("type:")).toBeVisible();
+    expect(historyNav.getSnapshot()).toBe("tab=all");
   });
 });
