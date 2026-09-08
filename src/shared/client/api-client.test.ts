@@ -186,6 +186,29 @@ describe("createApiClient mutations", () => {
     });
   });
 
+  it("renames a category with PATCH", async () => {
+    const fetchImpl = respondWith(
+      jsonResponse(200, { data: { id: "c1" }, requestId: REQUEST_ID }),
+    );
+
+    const result = await clientWith(fetchImpl).patch("/api/categories/c1", {
+      name: "Casa",
+    });
+
+    expect(result).toMatchObject({ ok: true, status: 200 });
+    expect(fetchImpl).toHaveBeenCalledWith("/api/categories/c1", {
+      method: "PATCH",
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: undefined,
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: '{"name":"Casa"}',
+    });
+  });
+
   it("replaces a movement with PUT", async () => {
     const fetchImpl = respondWith(
       jsonResponse(200, { data: { id: "t1" }, requestId: REQUEST_ID }),
@@ -463,6 +486,7 @@ describe("createApiClient retry policy", () => {
   it.each([
     ["POST", "/api/transactions"],
     ["PUT", "/api/transactions/t1"],
+    ["PATCH", "/api/categories/c1"],
     ["DELETE", "/api/transactions/t1"],
   ] as const)(
     "sends a %s exactly once when the server answers 500",
@@ -491,6 +515,7 @@ describe("createApiClient retry policy", () => {
   it.each([
     ["POST", "/api/transactions"],
     ["PUT", "/api/transactions/t1"],
+    ["PATCH", "/api/categories/c1"],
     ["DELETE", "/api/transactions/t1"],
   ] as const)(
     "sends a %s exactly once when the transport fails",

@@ -14,10 +14,11 @@
  * form can only keep the user's input, show the Spanish copy of the refusal or
  * stay silent on a cancelled reload if it can tell those four apart.
  *
- * The transport never repeats a request. `POST`, `PUT` and `DELETE` create,
- * replace and remove movements, so a retry hidden inside the client could
- * duplicate a movement the owner entered once; whether an operation may be
- * attempted again is a decision for the caller that knows its semantics.
+ * The transport never repeats a request. `POST`, `PUT`, `PATCH` and `DELETE`
+ * create, replace, rename and remove resources, so a retry hidden inside the
+ * client could duplicate a movement the owner entered once; whether an
+ * operation may be attempted again is a decision for the caller that knows
+ * its semantics.
  */
 
 import type {
@@ -135,6 +136,11 @@ export interface ApiClient {
     options?: ApiRequestOptions,
   ): Promise<ApiClientResult<TData>>;
   put<TData>(
+    path: string,
+    body: unknown,
+    options?: ApiRequestOptions,
+  ): Promise<ApiClientResult<TData>>;
+  patch<TData>(
     path: string,
     body: unknown,
     options?: ApiRequestOptions,
@@ -411,6 +417,8 @@ export function createApiClient(deps: ApiClientDeps = {}): ApiClient {
       request<TData>({ method: "POST", path, body, ...options }),
     put: <TData>(path: string, body: unknown, options?: ApiRequestOptions) =>
       request<TData>({ method: "PUT", path, body, ...options }),
+    patch: <TData>(path: string, body: unknown, options?: ApiRequestOptions) =>
+      request<TData>({ method: "PATCH", path, body, ...options }),
     delete: <TData>(path: string, options?: ApiRequestOptions) =>
       request<TData>({ method: "DELETE", path, ...options }),
   };

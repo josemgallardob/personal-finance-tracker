@@ -10,8 +10,6 @@
 
 import "server-only";
 
-import { z } from "zod";
-
 import type { DomainError, DomainResult } from "../../../shared/domain/errors";
 import { domainError, invalid } from "../../../shared/domain/errors";
 import type { SqliteConnection } from "../../../shared/server/database";
@@ -22,7 +20,6 @@ import {
   type ApiResult,
 } from "../../../shared/server/http/failure";
 import { toApiFailure } from "../../../shared/server/http/domain-status";
-import { apiObject } from "../../../shared/server/http/schema";
 import { createClassificationMaintenance } from "../application/services/classification-maintenance";
 import type {
   ClassificationRepositoryError,
@@ -35,49 +32,17 @@ import {
   type SqliteUnitOfWork,
 } from "../infrastructure/sqlite-unit-of-work";
 
-/** Lifecycle filter a classification collection accepts. */
-export const CLASSIFICATION_STATUSES = ["active", "archived", "all"] as const;
-
-/** Query of GET /api/categories. */
-export const categoryListQuerySchema = apiObject({
-  status: z.enum(CLASSIFICATION_STATUSES).optional(),
-  type: z.enum(["expense", "income"]).optional(),
-});
-
-/** Body of POST /api/categories. */
-export const createCategoryBodySchema = apiObject({
-  name: z.string(),
-  type: z.enum(["expense", "income"]),
-});
-
-/** Body of PATCH /api/categories/[id]. Type is immutable and rejected here. */
-export const renameCategoryBodySchema = apiObject({
-  name: z.string(),
-});
-
-/** Empty body of POST .../archive. Unknown keys are refused. */
-export const archiveBodySchema = apiObject({});
-
-/** Body of PUT /api/categories/order. */
-export const reorderCategoriesBodySchema = apiObject({
-  type: z.enum(["expense", "income"]),
-  orderedCategoryIds: z.array(z.string()),
-});
-
-/** Query of GET /api/tags. */
-export const tagListQuerySchema = apiObject({
-  status: z.enum(CLASSIFICATION_STATUSES).optional(),
-});
-
-/** Body of POST /api/tags. */
-export const createTagBodySchema = apiObject({
-  name: z.string(),
-});
-
-/** Body of PATCH /api/tags/[id]. */
-export const renameTagBodySchema = apiObject({
-  name: z.string(),
-});
+export {
+  archiveBodySchema,
+  categoryListQuerySchema,
+  CLASSIFICATION_STATUSES,
+  createCategoryBodySchema,
+  createTagBodySchema,
+  renameCategoryBodySchema,
+  renameTagBodySchema,
+  reorderCategoriesBodySchema,
+  tagListQuerySchema,
+} from "../contracts/http";
 
 /** Thrown to make SQLite roll back a domain refusal inside a transaction. */
 const ROLLBACK_SIGNAL = new Error("Classification HTTP work was rolled back");

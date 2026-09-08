@@ -12,8 +12,8 @@
  * The module is free of Node, Next and DOM imports for that reason.
  */
 
-/** Methods the API exposes. No endpoint answers `PATCH` or `HEAD`. */
-export type ApiMethod = "GET" | "POST" | "PUT" | "DELETE";
+/** Methods the API exposes. No endpoint answers `HEAD`. */
+export type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /**
  * Origin-relative prefix every endpoint lives under.
