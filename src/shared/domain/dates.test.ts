@@ -9,6 +9,7 @@ import {
   compareMonthKeys,
   createLocalDate,
   createMonthKey,
+  daysInMonth,
   localDateParts,
   monthKeyOf,
   monthKeyParts,
@@ -310,5 +311,19 @@ describe("compareMonthKeys", () => {
     expect(
       compareMonthKeys(parsedMonth("2026-01"), parsedMonth("2026-01")),
     ).toBe(0);
+  });
+});
+
+describe("daysInMonth", () => {
+  it.each([
+    [2026, 1, 31],
+    [2026, 2, 28],
+    [2024, 2, 29],
+    [2000, 2, 29],
+    [1900, 2, 28],
+    [2026, 4, 30],
+    [2026, 12, 31],
+  ])("reports %i-%i as having %i days", (year, monthNumber, expected) => {
+    expect(daysInMonth(year, monthNumber)).toBe(expected);
   });
 });

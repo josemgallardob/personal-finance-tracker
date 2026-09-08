@@ -9,6 +9,8 @@ import {
   formatMoneyMinorAsEur,
   isMoneyMinor,
   parseTransactionAmountText,
+  presentAverageMinor,
+  roundDivisionHalfAwayFromZero,
   subtractMoneyMinor,
   toMoneyMinor,
 } from "./money";
@@ -249,6 +251,95 @@ describe("subtractMoneyMinor", () => {
         checkedMinor(-1),
       ),
     ).toEqual({ ok: false, error: "overflow" });
+  });
+});
+
+describe("roundDivisionHalfAwayFromZero", () => {
+  it("keeps an exact quotient", () => {
+    expect(roundDivisionHalfAwayFromZero(100_000, 2)).toEqual({
+      ok: true,
+      value: 50_000,
+    });
+  });
+
+  it("rounds a positive remainder below half toward zero", () => {
+    expect(roundDivisionHalfAwayFromZero(100_000, 3)).toEqual({
+      ok: true,
+      value: 33_333,
+    });
+  });
+
+  it("rounds a positive half away from zero", () => {
+    expect(roundDivisionHalfAwayFromZero(100_001, 2)).toEqual({
+      ok: true,
+      value: 50_001,
+    });
+  });
+
+  it("rounds a negative half away from zero", () => {
+    expect(roundDivisionHalfAwayFromZero(-100_001, 2)).toEqual({
+      ok: true,
+      value: -50_001,
+    });
+  });
+
+  it("rounds a negative remainder below half toward zero", () => {
+    expect(roundDivisionHalfAwayFromZero(-10, 3)).toEqual({
+      ok: true,
+      value: -3,
+    });
+  });
+
+  it("applies the sign of a negative divisor", () => {
+    expect(roundDivisionHalfAwayFromZero(100_001, -2)).toEqual({
+      ok: true,
+      value: -50_001,
+    });
+  });
+
+  it("refuses a divisor of zero instead of inventing a quotient", () => {
+    expect(roundDivisionHalfAwayFromZero(1, 0)).toEqual({
+      ok: false,
+      error: "overflow",
+    });
+  });
+
+  it("refuses a numerator that is not an exact integer", () => {
+    expect(roundDivisionHalfAwayFromZero(1.5, 2)).toEqual({
+      ok: false,
+      error: "notSafeInteger",
+    });
+  });
+
+  it("refuses a divisor that is not an exact integer", () => {
+    expect(roundDivisionHalfAwayFromZero(2, 1.5)).toEqual({
+      ok: false,
+      error: "notSafeInteger",
+    });
+  });
+});
+
+describe("presentAverageMinor", () => {
+  it("presents the accepted monthly-average examples before display", () => {
+    expect(presentAverageMinor(checkedMinor(100_000), 3)).toEqual({
+      ok: true,
+      value: 33_333,
+    });
+    expect(presentAverageMinor(checkedMinor(100_001), 2)).toEqual({
+      ok: true,
+      value: 50_001,
+    });
+    expect(presentAverageMinor(checkedMinor(-100_001), 2)).toEqual({
+      ok: true,
+      value: -50_001,
+    });
+  });
+
+  it("refuses a zero divisor instead of presenting a zero average", () => {
+    expect(presentAverageMinor(checkedMinor(100), 0)).toEqual({
+      ok: false,
+      error: "overflow",
+    });
   });
 });
 
