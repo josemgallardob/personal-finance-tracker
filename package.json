@@ -22,21 +22,25 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "security:secrets": "secretlint --format github \"**/*\"",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run verify:clean-migrations && npm run verify:build-without-database && npm run security:secrets"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
+    "@hookform/resolvers": "^5.9.1",
     "@radix-ui/react-dialog": "^1.1.23",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.2",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-hook-form": "^7.87.0",
     "server-only": "^0.0.1",
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.5",
     "@tailwindcss/postcss": "^4.2.1",
     "@testing-library/jest-dom": "^6.9.1",
