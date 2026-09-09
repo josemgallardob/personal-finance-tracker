@@ -14,6 +14,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"db/**/*.ts\" \"scripts/**/*.ts\" \"*.{json,ts,mjs}\" \".github/**/*.yml\" \".secretlintrc.json\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --conditions react-server scripts/migrate.ts",
+    "db:migrate:demo": "tsx --conditions react-server scripts/migrate-demo.ts",
     "recurring:run": "tsx --conditions react-server scripts/run-recurring.ts",
     "verify:clean-migrations": "tsx scripts/verify-clean-migrations.ts",
     "verify:build-without-database": "tsx scripts/verify-build-without-database.ts",

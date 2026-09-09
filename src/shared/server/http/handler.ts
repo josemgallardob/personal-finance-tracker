@@ -20,6 +20,8 @@ import type { z } from "zod";
 
 import type { PersonalWorkspace } from "../../../modules/preferences/server/workspace";
 import { resolvePersonalWorkspace } from "../../../modules/preferences/server/workspace";
+import type { ApplicationMode } from "../../../modules/preferences/contracts";
+import { resolveApplicationMode } from "../../../modules/preferences/server/mode";
 import type { ApiErrorCode } from "../../contracts/api";
 import type { EnvSource } from "../config";
 import { loadAppConfig } from "../config";
@@ -58,6 +60,8 @@ export interface ApiRequestContext<TBody, TQuery> {
   /** Identifier read from the database, never from the request. */
   readonly workspaceId: string;
   readonly workspace: PersonalWorkspace;
+  /** Closed-set server-validated mode that selected this file. */
+  readonly mode: ApplicationMode;
   readonly connection: SqliteConnection;
   readonly body: TBody;
   readonly query: TQuery;
@@ -83,6 +87,7 @@ export interface ApiHandlerDeps {
   readonly env?: EnvSource;
   readonly openConnection?: (
     source: EnvSource,
+    mode?: ApplicationMode,
   ) => DatabaseResult<SqliteConnection>;
   readonly logger?: ApiLogger;
   readonly now?: () => number;
@@ -97,6 +102,7 @@ interface PipelineStages<TBody, TQuery> {
   readonly query: TQuery;
   readonly connection: SqliteConnection;
   readonly workspace: PersonalWorkspace;
+  readonly mode: ApplicationMode;
 }
 
 async function resolveStages<TBody, TQuery>(
@@ -104,7 +110,10 @@ async function resolveStages<TBody, TQuery>(
   url: URL,
   definition: ApiHandlerDefinition<TBody, TQuery, unknown>,
   env: EnvSource,
-  openConnection: (source: EnvSource) => DatabaseResult<SqliteConnection>,
+  openConnection: (
+    source: EnvSource,
+    mode?: ApplicationMode,
+  ) => DatabaseResult<SqliteConnection>,
 ): Promise<ApiResult<PipelineStages<TBody, TQuery>>> {
   const config = loadAppConfig(env);
 
@@ -130,7 +139,13 @@ async function resolveStages<TBody, TQuery>(
     return refused(body.failure);
   }
 
-  const opened = openConnection(env);
+  const mode = resolveApplicationMode(request.headers.get("cookie"));
+
+  if (!mode.ok) {
+    return refused(mode.failure);
+  }
+
+  const opened = openConnection(env, mode.value);
 
   if (!opened.ok) {
     return refused(apiFailure(DATABASE_ERROR_API_CODE[opened.error.code]));
@@ -147,6 +162,7 @@ async function resolveStages<TBody, TQuery>(
     query: query.value,
     connection: opened.value,
     workspace: workspace.value,
+    mode: mode.value,
   });
 }
 
@@ -234,6 +250,7 @@ export function createApiHandler<TBody, TQuery, TData>(
           requestId,
           workspaceId: stages.value.workspace.id,
           workspace: stages.value.workspace,
+          mode: stages.value.mode,
           connection: stages.value.connection,
           body: stages.value.body,
           query: stages.value.query,

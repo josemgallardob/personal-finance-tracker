@@ -3,23 +3,19 @@
  *
  * This module owns the documented lifecycle of the process connection and the
  * collaborators a handler needs for one request: the environment map, the
- * SQLite opener, the Madrid clock and the fixed personal application mode.
+ * SQLite opener and the Madrid clock.
  * Feature modules import this wiring; they never import route files. Route
  * files call handler factories and never open a database or read a cookie.
  *
  * The connection itself follows the process rules already documented by the
- * database module: at most one process-wide file, opened on first use, never
- * at import time and never during `next build`. Tests replace the opener so
- * each case keeps its own temporary file. Demo mode switching is reserved for
- * a later area, so the mode reported here is always personal.
+ * database module: one mode-specific process connection, opened on first use,
+ * never at import time and never during `next build`. Tests replace the opener
+ * so each case keeps its own temporary file.
  */
 
 import "server-only";
 
-import {
-  PERSONAL_APPLICATION_MODE,
-  type ApplicationMode,
-} from "../../modules/preferences/contracts";
+import type { ApplicationMode } from "../../modules/preferences/contracts";
 import { SystemClock, type Clock } from "../domain/clock";
 import {
   getSqliteConnection,
@@ -35,6 +31,7 @@ export interface ServerCompositionDeps {
   readonly env?: EnvSource;
   readonly openConnection?: (
     source: EnvSource,
+    mode?: ApplicationMode,
   ) => DatabaseResult<SqliteConnection>;
   readonly logger?: ApiLogger;
   readonly now?: () => number;
@@ -42,10 +39,9 @@ export interface ServerCompositionDeps {
   readonly clock?: Clock;
 }
 
-/** Connection, clock and mode bound for one handler factory. */
+/** Connection and clock collaborators bound for one handler factory. */
 export interface ServerComposition {
   readonly clock: Clock;
-  readonly mode: ApplicationMode;
   readonly handlerDeps: ApiHandlerDeps;
 }
 
@@ -72,7 +68,6 @@ export function createServerComposition(
 
   return {
     clock: deps.clock ?? new SystemClock(),
-    mode: PERSONAL_APPLICATION_MODE,
     handlerDeps,
   };
 }

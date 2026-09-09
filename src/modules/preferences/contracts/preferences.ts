@@ -19,15 +19,15 @@ export const PREFERENCES_CURRENCY = "EUR";
 export const PREFERENCES_TIME_ZONE = "Europe/Madrid";
 
 /**
- * Application mode this area is allowed to report.
- *
- * Demo switching is a later area. Until then the server always answers
- * `personal` and never reads a mode from the request.
+ * Server-validated application modes. They select fixed server-side database
+ * paths and never name a workspace or a client-provided path.
  */
 export const PERSONAL_APPLICATION_MODE = "personal";
+export const DEMO_APPLICATION_MODE = "demo";
 
 /** Closed set of modes the preferences contract may name. */
-export type ApplicationMode = typeof PERSONAL_APPLICATION_MODE;
+export type ApplicationMode =
+  typeof PERSONAL_APPLICATION_MODE | typeof DEMO_APPLICATION_MODE;
 
 /** Preferences as the API returns them. */
 export interface PreferencesDto {

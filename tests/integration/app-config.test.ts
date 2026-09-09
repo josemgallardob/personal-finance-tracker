@@ -30,6 +30,7 @@ describe("loadAppConfig", () => {
       ok: true,
       value: {
         databasePath: filePath,
+        demoDatabasePath: resolve(filePath, "..", "demo-finance.sqlite"),
         appUrl: "http://localhost:3000",
         timeZone: APPLICATION_TIME_ZONE,
       },
@@ -45,6 +46,7 @@ describe("loadAppConfig", () => {
       ok: true,
       value: {
         databasePath: resolve("./data/personal-finance.db"),
+        demoDatabasePath: resolve("./data/demo-finance.sqlite"),
         appUrl: "http://localhost:3000",
         timeZone: APPLICATION_TIME_ZONE,
       },
@@ -59,6 +61,7 @@ describe("loadAppConfig", () => {
       ok: false,
       errors: [
         { field: "databasePath", code: "required" },
+        { field: "demoDatabasePath", code: "required" },
         { field: "appUrl", code: "required" },
         { field: "timeZone", code: "required" },
       ],
@@ -76,6 +79,7 @@ describe("loadAppConfig", () => {
       ok: false,
       errors: [
         { field: "databasePath", code: "required" },
+        { field: "demoDatabasePath", code: "required" },
         { field: "appUrl", code: "required" },
         { field: "timeZone", code: "required" },
       ],

@@ -150,7 +150,7 @@ describe("GET /api/preferences", () => {
     expect(response.headers.get("x-request-id")).toBe("composed-request");
   });
 
-  it("ignores a demo cookie and never exposes paths, secrets or workspace ids", async () => {
+  it("reports the validated demo cookie without exposing paths or workspace ids", async () => {
     const { deps, logs } = preferenceDeps(
       fixture,
       new SystemClock(() => new Date("2026-09-06T10:00:00Z")),
@@ -168,7 +168,7 @@ describe("GET /api/preferences", () => {
       requestId: string;
     };
 
-    expect(envelope.data.mode).toBe("personal");
+    expect(envelope.data.mode).toBe("demo");
     expect(envelope.requestId).toBe("pref-1");
     expect(body).not.toContain(fixture.workspaceId);
     expect(body).not.toContain(fixture.connection.filePath);
@@ -297,7 +297,7 @@ describe("preferences route wiring", () => {
 });
 
 describe("server composition", () => {
-  it("defers the connection and wires the process opener and personal mode", () => {
+  it("defers the connection and wires the process opener", () => {
     let opened = 0;
     const logger = () => undefined;
     const env = createValidAppEnv("/tmp/personal-finance.sqlite");
@@ -313,7 +313,6 @@ describe("server composition", () => {
     });
 
     expect(opened).toBe(0);
-    expect(composition.mode).toBe("personal");
     expect(composition.handlerDeps.env).toBe(env);
     expect(composition.handlerDeps.logger).toBe(logger);
     expect(composition.handlerDeps.now?.()).toBe(1_000);
@@ -322,7 +321,6 @@ describe("server composition", () => {
     const defaults = createServerComposition();
 
     expect(defaults.handlerDeps.openConnection).toBe(getSqliteConnection);
-    expect(defaults.mode).toBe(PERSONAL_APPLICATION_MODE);
     expect(defaults.clock.today()).toEqual(expect.any(String));
   });
 

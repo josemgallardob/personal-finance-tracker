@@ -14,7 +14,7 @@ import {
   type DatabaseErrorCode,
   NEXT_PRODUCTION_BUILD_PHASE,
   closeSqliteConnection,
-  getSqliteConnection,
+  getPersonalSqliteConnection,
 } from "../../../shared/server/database";
 import {
   type RecurringCatchUpCode,
@@ -63,7 +63,7 @@ export function runPersonalRecurringCatchUp(
     return skipped;
   }
 
-  const opened = getSqliteConnection(env);
+  const opened = getPersonalSqliteConnection(env);
 
   if (!opened.ok) {
     const summary: RecurringCatchUpSummary = {
