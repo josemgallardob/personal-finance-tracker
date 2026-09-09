@@ -9,12 +9,19 @@ trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
 
 for template in \
   personal-finance-recurring.service \
-  personal-finance-recurring.timer
+  personal-finance-recurring.timer \
+  personal-finance-backup.service \
+  personal-finance-backup.timer
 do
-  sed "s|__APP_DIRECTORY__|$root|g" \
+  sed \
+    -e "s|__APP_DIRECTORY__|$root|g" \
+    -e "s|__BACKUP_DESTINATION_DIRECTORY__|$temporary_directory/destination|g" \
+    -e "s|__BACKUP_KEY_FILE__|$temporary_directory/backup.key|g" \
     "$root/operations/systemd/$template" >"$temporary_directory/$template"
 done
 
 systemd-analyze verify \
   "$temporary_directory/personal-finance-recurring.service" \
-  "$temporary_directory/personal-finance-recurring.timer"
+  "$temporary_directory/personal-finance-recurring.timer" \
+  "$temporary_directory/personal-finance-backup.service" \
+  "$temporary_directory/personal-finance-backup.timer"

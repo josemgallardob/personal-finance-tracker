@@ -1,0 +1,13 @@
+[Unit]
+Description=Personal Finance Tracker encrypted backup
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=__APP_DIRECTORY__
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# The destination directory and the key file live on the host, outside the
+# repository and outside every image layer. The key is mounted read-only and
+# the command never publishes a port.
+ExecStart=/usr/bin/env docker compose run --rm --no-deps --entrypoint npm -v __BACKUP_DESTINATION_DIRECTORY__:/backups -v __BACKUP_KEY_FILE__:/run/secrets/backup-key:ro -e BACKUP_PATH=/tmp/personal-finance-backup -e BACKUP_DESTINATION_URI=file:///backups -e BACKUP_ENCRYPTION_KEY_FILE=/run/secrets/backup-key app run backup:run

@@ -18,6 +18,7 @@
     "db:migrate:demo": "tsx --conditions react-server scripts/migrate-demo.ts",
     "db:seed:demo": "tsx --conditions react-server scripts/seed-demo.ts",
     "recurring:run": "tsx --conditions react-server scripts/run-recurring.ts",
+    "backup:run": "tsx --conditions react-server scripts/backup.ts",
     "verify:clean-migrations": "tsx scripts/verify-clean-migrations.ts",
     "verify:build-without-database": "tsx scripts/verify-build-without-database.ts",
     "lint": "eslint . --max-warnings=0",

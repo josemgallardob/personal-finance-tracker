@@ -86,11 +86,19 @@ npm run build
 npm run start:server
 ```
 
-Remote access over the private VPN, the daily scheduler and encrypted backups
-are operated outside this repository and are documented with the operations
-tasks that own them. The [private Tailscale operations
+Remote access over the private VPN and the daily schedulers are operated outside
+this repository. The [private Tailscale operations
 runbook](operations/README.md) provides installation templates and the required
-owner-observed smoke evidence for HTTPS access and recurrence scheduling.
+owner-observed smoke evidence for HTTPS access, recurrence scheduling and the
+encrypted backup.
+
+`npm run backup:run` writes a consistent SQLite snapshot, encrypts it with
+AES-256-GCM and uploads it to the configured destination before applying a
+7 daily / 4 weekly / 12 monthly retention over the artifacts it owns. It exits
+non-zero when the artifact did not reach the destination. The key never lives
+in this repository: it is read from an owner-installed file, and the provider,
+path and key of a real deployment are an owner decision documented in the
+runbook.
 
 ## Local development
 

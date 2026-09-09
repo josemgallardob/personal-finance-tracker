@@ -89,6 +89,97 @@ while the application is live because the SQLite recurrence uniqueness rule
 prevents duplicate scheduled occurrences; a restart also migrates both files
 and catches up overdue personal recurrences before accepting requests.
 
+## Encrypted external backup and retention
+
+`npm run backup:run` takes a consistent SQLite snapshot with `VACUUM INTO`,
+encrypts it with AES-256-GCM and uploads it to the configured destination
+before applying a 7 daily / 4 weekly / 12 monthly retention. The command exits
+non-zero whenever the artifact did not reach the destination or retention could
+not be applied, so a scheduler reports a failed backup instead of a silent gap.
+
+### Owner decision required before a real deployment
+
+Three choices belong to the project owner and are not made in this repository:
+
+1. the destination provider and its exact path;
+2. where the encryption key is generated, stored and rotated; and
+3. who may read the destination and the key.
+
+Only a `file://` destination is implemented. It fits an owner-mounted external
+volume or a directory a provider agent synchronises off the VPS. A hosted
+object store is refused with `unsupportedDestinationScheme` rather than guessed,
+because its credential handling is part of the same decision. Until the owner
+records those choices, treat this section as a verified local template, not as
+evidence of an off-site backup.
+
+### Key and destination
+
+Generate the key on the host, never in the repository and never in a ticket:
+
+```bash
+sudo install -d -m 700 /etc/personal-finance-tracker
+openssl rand -base64 32 | sudo tee /etc/personal-finance-tracker/backup.key >/dev/null
+sudo chmod 600 /etc/personal-finance-tracker/backup.key
+sudo chown __DEPLOYMENT_ACCOUNT__ /etc/personal-finance-tracker/backup.key
+```
+
+The command refuses a key file whose permissions grant any access to the group
+or to other users, a key that is not 32 base64-encoded bytes, and any attempt
+to pass key material inline through `BACKUP_ENCRYPTION_KEY`. The owner of the
+key file must be the identity that runs the job; inside the container that is
+the unprivileged `node` user, so the bind mount has to be readable by it.
+
+Set the destination and the key path in the host `.env`, or pass them to the
+scheduled run as the templates do:
+
+```dotenv
+BACKUP_PATH=/tmp/personal-finance-backup
+BACKUP_DESTINATION_URI=file:///srv/personal-finance-backups
+BACKUP_ENCRYPTION_KEY_FILE=/etc/personal-finance-tracker/backup.key
+```
+
+`BACKUP_PATH` is a private staging directory, created with owner-only
+permissions, where the plaintext snapshot exists only while the run lasts. It
+is removed whether the run succeeds or fails, so the unencrypted database never
+survives outside the application volume.
+
+### Daily schedule
+
+Replace `__APP_DIRECTORY__`, `__BACKUP_DESTINATION_DIRECTORY__` and
+`__BACKUP_KEY_FILE__` in `systemd/personal-finance-backup.service` (or in
+`cron/personal-finance-backup`) and install them the same way as the recurring
+job. `Persistent=true` runs a missed backup after the host returns. The backup
+timer is deliberately scheduled after the recurring timer so a daily artifact
+already contains the day's generated occurrences.
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now personal-finance-backup.timer
+sudo systemctl start personal-finance-backup.service
+sudo journalctl -u personal-finance-backup.service -n 20 --no-pager
+```
+
+### What the run guarantees
+
+- The snapshot is taken through SQLite itself while the application keeps
+  writing, so it can never contain a half-applied transaction, and it is
+  rejected if it fails `integrity_check` or `foreign_key_check`.
+- The artifact is authenticated together with its own name, so a modified,
+  truncated, renamed or foreign file fails to decrypt instead of restoring
+  plausible but wrong data.
+- The upload is committed with a rename, and retention runs only afterwards. A
+  refused upload therefore leaves every existing valid backup in place and
+  fails the run.
+- Retention only ever considers files that carry this tool's name shape *and*
+  its encrypted signature. Anything else in the destination — an operator note,
+  a foreign backup, an interrupted `.partial` upload — is never deleted.
+- Reports name the step and a closed reason code. They never print a database
+  path, key material, an amount, a concept or a tag.
+
+Restoring an artifact into a live installation, including the pre-migration
+backup for a destructive schema change, is the rehearsed recovery procedure and
+is documented with the task that owns it.
+
 ## Required observed smoke evidence
 
 Repository checks can verify the templates but cannot prove a tailnet,
@@ -108,7 +199,14 @@ following observed, redacted results:
   mutation sent with a different Origin is refused with HTTP 403;
 - no listener is exposed on a public/LAN address: the app remains loopback-only
   and the proxy is bound only to the Tailscale IP; and
-- the operator confirms no Funnel configuration exists for this hostname.
+- the operator confirms no Funnel configuration exists for this hostname;
+- the backup timer is enabled with a future trigger, a manual run exits zero
+  and writes exactly one new artifact to the owner-approved destination without
+  printing a path or key material;
+- an artifact downloaded from that destination decrypts with the installed key
+  on a disposable host and passes `integrity_check`; and
+- after nine consecutive daily runs the destination holds the expected retained
+  set and every unrelated file the operator placed there is still present.
 
 Record dates, command exit statuses, listener addresses, certificate hostname,
 and redacted HTTP statuses. Do not record credentials, URLs containing private

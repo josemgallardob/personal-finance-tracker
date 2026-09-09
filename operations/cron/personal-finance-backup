@@ -1,0 +1,6 @@
+# Install for the dedicated deployment account with `crontab
+# operations/cron/personal-finance-backup` after replacing every placeholder.
+# Docker Compose loads the same .env and named volumes as the application.
+# Do not add --service-ports: the job must not bind a host port.
+PATH=/usr/local/bin:/usr/bin:/bin
+23 4 * * * cd __APP_DIRECTORY__ && docker compose run --rm --no-deps --entrypoint npm -v __BACKUP_DESTINATION_DIRECTORY__:/backups -v __BACKUP_KEY_FILE__:/run/secrets/backup-key:ro -e BACKUP_PATH=/tmp/personal-finance-backup -e BACKUP_DESTINATION_URI=file:///backups -e BACKUP_ENCRYPTION_KEY_FILE=/run/secrets/backup-key app run backup:run
