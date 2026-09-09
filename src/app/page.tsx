@@ -1,22 +1,24 @@
+import { DashboardSummary } from "../modules/analytics/ui/dashboard-summary";
+import { dashboardCopy } from "../modules/analytics/ui/dashboard-copy";
+
 export default function HomePage() {
   return (
     <section
-      aria-labelledby="page-title"
-      className="border-border bg-surface-raised w-full max-w-2xl rounded-[20px] border p-8 sm:p-12"
+      aria-labelledby="dashboard-title"
+      className="flex w-full max-w-5xl min-w-0 flex-col gap-6"
     >
-      <p className="bg-primary mb-6 inline-flex rounded-full px-4 py-2 text-sm font-semibold">
-        Finanzas personales
-      </p>
-      <h1
-        id="page-title"
-        className="max-w-xl text-4xl leading-tight font-medium tracking-tight sm:text-5xl"
-      >
-        Tu espacio financiero está en camino.
-      </h1>
-      <p className="text-text-muted mt-6 max-w-xl text-base leading-7 sm:text-lg">
-        Estamos preparando una forma rápida y privada de registrar tus
-        movimientos y entender mejor tus ingresos y gastos cotidianos.
-      </p>
+      <header className="flex w-full max-w-full min-w-0 flex-col gap-2">
+        <h1
+          className="text-heading-sm text-text font-medium"
+          id="dashboard-title"
+        >
+          {dashboardCopy.title}
+        </h1>
+        <p className="text-body text-text-muted max-w-xl">
+          {dashboardCopy.description}
+        </p>
+      </header>
+      <DashboardSummary />
     </section>
   );
 }
