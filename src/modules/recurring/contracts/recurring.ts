@@ -28,6 +28,24 @@ export interface RecurringRulesListDto {
   readonly incomes: readonly RecurringRuleDto[];
 }
 
+/**
+ * Result of an edit or a deactivation.
+ *
+ * A template change first materialises the dates that were already due with
+ * the previous template, so the response reports them: the browser has to be
+ * able to tell the owner which movements the change has just created.
+ */
+export interface RecurringRuleChangeDto {
+  readonly rule: RecurringRuleDto;
+  readonly generatedDueDates: readonly string[];
+}
+
+/** Dates a later edit or deactivation would materialise, read without writing. */
+export interface CatchUpPreviewDto {
+  readonly rule: RecurringRuleDto;
+  readonly pendingDueDates: readonly string[];
+}
+
 /** Maps a domain rule to the documented HTTP representation. */
 export function toRecurringRuleDto(rule: RecurringRule): RecurringRuleDto {
   return {

@@ -1,10 +1,8 @@
 import { Suspense } from "react";
 
 import { HistoryList } from "../../modules/transactions/ui/history-list";
-import {
-  HistoryTabs,
-  RecurringHistoryPlaceholder,
-} from "../../modules/transactions/ui/history-tabs";
+import { RecurringList } from "../../modules/recurring/ui/recurring-list";
+import { HistoryTabs } from "../../modules/transactions/ui/history-tabs";
 import {
   HISTORY_ALL_TAB,
   historyCopy,
@@ -42,11 +40,7 @@ export default async function TransactionsPage({
       </header>
       <Suspense fallback={<LoadingState label={historyCopy.loading} />}>
         <HistoryTabs activeTab={tab} />
-        {tab === HISTORY_ALL_TAB ? (
-          <HistoryList />
-        ) : (
-          <RecurringHistoryPlaceholder />
-        )}
+        {tab === HISTORY_ALL_TAB ? <HistoryList /> : <RecurringList />}
       </Suspense>
     </section>
   );

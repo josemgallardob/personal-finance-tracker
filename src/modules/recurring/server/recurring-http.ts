@@ -37,6 +37,8 @@ import { sqliteRecurringRuleRepository } from "../infrastructure/sqlite-recurrin
 import { createRecurringLifecycle } from "../application/services/recurring-lifecycle";
 import {
   toRecurringRuleDto,
+  type CatchUpPreviewDto,
+  type RecurringRuleChangeDto,
   type RecurringRuleDto,
   type RecurringRulesListDto,
 } from "../contracts/recurring";
@@ -51,18 +53,6 @@ type ActivateBody = z.infer<typeof activateRecurringRuleBodySchema>;
 type DeactivateBody = z.infer<typeof deactivateRecurringRuleBodySchema>;
 type PreviewBody = z.infer<typeof previewNextDueDateBodySchema>;
 type WriteBody = z.infer<typeof recurringRuleWriteBodySchema>;
-
-/** A template change response, including dates materialised before it applied. */
-export interface RecurringRuleChangeDto {
-  readonly rule: RecurringRuleDto;
-  readonly generatedDueDates: readonly string[];
-}
-
-/** A catch-up preview performed without mutating the database. */
-export interface CatchUpPreviewDto {
-  readonly rule: RecurringRuleDto;
-  readonly pendingDueDates: readonly string[];
-}
 
 /** Test seams for recurrence handlers. */
 export type RecurringHttpDeps = ServerCompositionDeps & {

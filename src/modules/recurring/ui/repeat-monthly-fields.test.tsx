@@ -11,6 +11,9 @@ function api(preview: RecurringApi["previewNextDueDate"]): RecurringApi {
     listRules: vi.fn(),
     activateRule: vi.fn(),
     previewNextDueDate: preview,
+    previewCatchUp: vi.fn(),
+    updateRule: vi.fn(),
+    deactivateRule: vi.fn(),
   };
 }
 

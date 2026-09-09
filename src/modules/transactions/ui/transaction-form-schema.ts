@@ -150,7 +150,8 @@ export function formatLocalDateAsSpanish(date: string): string {
   return `${day}/${month}/${year}`;
 }
 
-function moneyMessage(error: MoneyErrorCode): string {
+/** Spanish message of a rejected amount, shared with the recurrence form. */
+export function moneyMessage(error: MoneyErrorCode): string {
   switch (error) {
     case "belowMinimum":
       return transactionFormCopy.amountTooSmall;
@@ -162,7 +163,8 @@ function moneyMessage(error: MoneyErrorCode): string {
   }
 }
 
-function optionalTextIssue(
+/** Message of an optional free-text field that is too long or malformed. */
+export function optionalTextIssue(
   raw: string,
   maxLength: number,
   allowLineBreaks: boolean,
@@ -186,7 +188,8 @@ function optionalTextIssue(
   return undefined;
 }
 
-function optionalWriteText(
+/** Optional free text as the API stores it: normalised, or `null` when empty. */
+export function optionalWriteText(
   raw: string,
   allowLineBreaks: boolean,
 ): string | null {

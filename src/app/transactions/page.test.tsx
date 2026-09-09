@@ -13,6 +13,7 @@ import { FinancialDataProvider } from "../../shared/client/financial-data-provid
 import { REQUEST_ID_HEADER } from "../../shared/contracts/http";
 import { emptyStateCopy } from "../../shared/ui/empty-state";
 import { historyCopy } from "../../modules/transactions/ui/history-copy";
+import { recurringCopy } from "../../modules/recurring/ui/recurring-copy";
 import TransactionsPage from "./page";
 
 const REQUEST_ID = "req-transactions-page";
@@ -135,8 +136,13 @@ describe("TransactionsPage", () => {
     ]);
   });
 
-  it("keeps Recurrentes as a placeholder without loading the history API", async () => {
-    const fetchImpl = vi.fn(() => Promise.resolve(dataResponse([])));
+  it("wires Recurrentes to the recurrence API instead of the history one", async () => {
+    const fetchImpl = vi.fn((input: string) => {
+      if (input.startsWith("/api/recurring-rules")) {
+        return Promise.resolve(dataResponse({ expenses: [], incomes: [] }));
+      }
+      return Promise.resolve(dataResponse([]));
+    });
     vi.stubGlobal("fetch", fetchImpl);
 
     await renderPage("recurring");
@@ -145,9 +151,16 @@ describe("TransactionsPage", () => {
       screen.getByRole("tab", { name: historyCopy.recurringTab }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
-      screen.getByRole("region", { name: historyCopy.recurringTitle }),
+      await screen.findByRole("region", { name: recurringCopy.emptyTitle }),
     ).toBeVisible();
-    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(fetchImpl.mock.calls.map((call) => call[0])).toContain(
+      "/api/recurring-rules",
+    );
+    expect(
+      fetchImpl.mock.calls.filter((call) =>
+        String(call[0]).startsWith("/api/transactions"),
+      ),
+    ).toHaveLength(0);
     expect(
       screen.queryByRole("region", {
         name: emptyStateCopy.noTransactions.title,

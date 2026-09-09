@@ -62,6 +62,18 @@ export const recurringRulesListDtoSchema = z.strictObject({
   incomes: z.array(recurringRuleDtoSchema),
 });
 
+/** Rule as it stands after an edit or a deactivation, with the dates it recovered. */
+export const recurringRuleChangeDtoSchema = z.strictObject({
+  rule: recurringRuleDtoSchema,
+  generatedDueDates: z.array(z.string()),
+});
+
+/** Overdue dates a later edit or deactivation would create, read without writing. */
+export const catchUpPreviewDtoSchema = z.strictObject({
+  rule: recurringRuleDtoSchema,
+  pendingDueDates: z.array(z.string()),
+});
+
 export type ActivateRecurringRuleBody = z.infer<
   typeof activateRecurringRuleBodySchema
 >;
