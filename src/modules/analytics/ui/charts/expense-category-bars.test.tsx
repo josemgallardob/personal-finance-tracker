@@ -36,7 +36,7 @@ vi.mock("next/link", () => ({
 
 /** Replaces the narrow no-break spaces produced by Intl with plain spaces. */
 function withPlainSpaces(text: string | null): string {
-  return (text ?? "").replace(/[  ]/g, " ");
+  return (text ?? "").replace(/[\u202f\u00a0]/g, " ");
 }
 
 function renderBars(

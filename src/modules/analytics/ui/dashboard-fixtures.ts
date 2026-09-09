@@ -9,6 +9,7 @@ import {
   movement,
 } from "../../transactions/ui/transaction-dialog-fixtures";
 import type { DrillDownDto } from "../contracts/drill-down";
+import type { MonthlyAveragesDto } from "../contracts/averages";
 import type { MonthlyEvolutionDto } from "../contracts/evolution";
 import type {
   CategoryExpenseDto,
@@ -43,6 +44,12 @@ function drillDown(
     untagged: false,
   };
 }
+
+/** Interval of the averages window, shared by every drill-down it publishes. */
+const AVERAGES_RANGE: DateRangeDto = {
+  start: "2025-09-01",
+  end: "2026-08-31",
+};
 
 function monthTotals(month: string, incomeMinor: number, expenseMinor: number) {
   const range = {
@@ -201,6 +208,100 @@ export const evolution: MonthlyEvolutionDto = {
   ],
 };
 
+/**
+ * Monthly averages as the API returns them.
+ *
+ * The window is twelve closed months, so every divisor is 12 and the exact
+ * sums are the ones the presentation has to round: 1.200,50 € of expense over
+ * twelve months is 100,04 € once rounded away from zero.
+ */
+export const averages: MonthlyAveragesDto = {
+  kind: "months",
+  context: {
+    window: {
+      start: "2025-09",
+      end: "2026-08",
+      months: [
+        "2025-09",
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+      ],
+      monthCount: 12,
+      range: { start: "2025-09-01", end: "2026-08-31" },
+    },
+    monthCount: 12,
+  },
+  totalExpense: {
+    totalMinor: 120050,
+    monthCount: 12,
+    drillDown: drillDown("expense", AVERAGES_RANGE),
+  },
+  net: {
+    totalMinor: -60006,
+    monthCount: 12,
+    drillDown: drillDown(null, AVERAGES_RANGE),
+  },
+  byCategory: [
+    {
+      totalMinor: 90000,
+      monthCount: 12,
+      drillDown: {
+        ...drillDown("expense", AVERAGES_RANGE),
+        categoryId: "cat-food",
+      },
+      category: {
+        id: "cat-food",
+        name: "Alimentación",
+        type: "expense",
+        isArchived: false,
+      },
+      transactionCount: 24,
+    },
+    {
+      totalMinor: 30050,
+      monthCount: 12,
+      drillDown: {
+        ...drillDown("expense", AVERAGES_RANGE),
+        categoryId: "cat-old",
+      },
+      category: {
+        id: "cat-old",
+        name: "Antigua",
+        type: "expense",
+        isArchived: true,
+      },
+      transactionCount: 3,
+    },
+  ],
+  byTag: [
+    {
+      totalMinor: 80000,
+      monthCount: 12,
+      drillDown: {
+        ...drillDown("expense", AVERAGES_RANGE),
+        tagIds: ["tag-trips"],
+      },
+      tag: { id: "tag-trips", name: "Viajes", isArchived: false },
+      transactionCount: 12,
+    },
+  ],
+  untagged: {
+    totalMinor: 40050,
+    monthCount: 12,
+    drillDown: { ...drillDown("expense", AVERAGES_RANGE), untagged: true },
+  },
+  overlapping: true,
+};
+
 /** Summary of the current month as the API returns it. */
 export const summary: DashboardSummaryDto = {
   period: { kind: "currentMonth", from: null, to: null },
@@ -234,6 +335,10 @@ export interface DashboardFetchOptions {
   readonly evolution?: MonthlyEvolutionDto;
   /** Answers the evolution request with this response instead of a series. */
   readonly evolutionResponse?: () => Response;
+  /** Averages each request answers with. Defaults to the fixture averages. */
+  readonly averages?: MonthlyAveragesDto;
+  /** Answers the averages request with this response instead of averages. */
+  readonly averagesResponse?: () => Response;
 }
 
 /**
@@ -259,6 +364,16 @@ export function dashboardFetch(
       call += 1;
 
       return Promise.resolve(jsonResponse(200, envelope(summaries[index])));
+    }
+
+    if (path.startsWith("/api/analytics/averages")) {
+      if (options.averagesResponse) {
+        return Promise.resolve(options.averagesResponse());
+      }
+
+      return Promise.resolve(
+        jsonResponse(200, envelope(options.averages ?? averages)),
+      );
     }
 
     if (path.startsWith("/api/analytics/evolution")) {

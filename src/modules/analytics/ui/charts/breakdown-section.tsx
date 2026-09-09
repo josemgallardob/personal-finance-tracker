@@ -15,7 +15,9 @@
  */
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 
+import { Button } from "../../../../shared/ui/button";
 import { EmptyState } from "../../../../shared/ui/empty-state";
 import { dashboardCopy } from "../dashboard-copy";
 import { ChartFigure } from "./chart-figure";
@@ -31,8 +33,19 @@ export interface BreakdownSectionProps {
   readonly labelColumn: string;
   /** Explanation shown above the figures, used by the overlapping tag groups. */
   readonly note?: string;
+  /** Selector of the drawn series, shown next to the title of the block. */
+  readonly selector?: ReactNode;
+  /**
+   * True when the window has figures but the current selection hides all of
+   * them, which is a different situation from a window without figures.
+   */
+  readonly selectionEmpty?: boolean;
+  /** Restores every active series of the dimension. */
+  readonly onSelectAll?: () => void;
   /** True when the groups are disjoint and may state a share of the expense. */
   readonly showShare: boolean;
+  /** Heading level of the block, so a nested block does not skip one. */
+  readonly titleLevel?: 2 | 3;
   readonly titleId: string;
   readonly title: string;
 }
@@ -45,24 +58,46 @@ export function BreakdownSection({
   emptyTitle,
   labelColumn,
   note,
+  onSelectAll,
+  selectionEmpty = false,
+  selector,
   showShare,
   title,
   titleId,
+  titleLevel = 2,
 }: BreakdownSectionProps) {
+  const Heading = titleLevel === 2 ? "h2" : "h3";
   return (
     <section
       aria-labelledby={titleId}
       className="flex w-full max-w-full min-w-0 flex-col gap-3"
     >
-      <h2 className="text-heading-sm text-text font-medium" id={titleId}>
-        {title}
-      </h2>
+      <div className="flex w-full max-w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Heading className="text-heading-sm text-text font-medium" id={titleId}>
+          {title}
+        </Heading>
+        {selector ? <div className="sm:w-auto">{selector}</div> : null}
+      </div>
       {note ? (
         <p className="text-body-sm text-text-muted max-w-2xl">{note}</p>
       ) : null}
-      {bars.length === 0 ? (
+      {bars.length === 0 && selectionEmpty ? (
+        <EmptyState
+          action={
+            onSelectAll ? (
+              <Button onClick={onSelectAll} variant="secondary">
+                {dashboardCopy.selectAll}
+              </Button>
+            ) : undefined
+          }
+          description={dashboardCopy.selectionEmptyDescription}
+          title={dashboardCopy.selectionEmptyTitle}
+        />
+      ) : null}
+      {bars.length === 0 && !selectionEmpty ? (
         <EmptyState description={emptyDescription} title={emptyTitle} />
-      ) : (
+      ) : null}
+      {bars.length === 0 ? null : (
         <>
           <ChartFigure name={chartName}>
             <LazyBreakdownBarsVisual bars={bars} />

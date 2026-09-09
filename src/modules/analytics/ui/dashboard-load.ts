@@ -7,13 +7,16 @@
  * recent movement must never lose its category label because the catalog was
  * later archived.
  *
- * A `204` from either call is treated as an invalid response. The dashboard
- * cannot paint cards without a summary, and it must not silently show a
- * recent movement without the names of its classification.
+ * A `204` from any of the calls is treated as an invalid response. The
+ * dashboard cannot paint cards without a summary, it must not silently show a
+ * recent movement without the names of its classification, and the series
+ * selection is stored per application mode, which the preferences carry.
  */
 
 import type { CategoryDto } from "../../classification/contracts/category";
 import type { TagDto } from "../../classification/contracts/tag";
+import { createPreferencesApi } from "../../preferences/client/preferences-api";
+import type { PreferencesDto } from "../../preferences/contracts/preferences";
 import { loadHistoryCatalogs } from "../../transactions/ui/history-load";
 import type {
   ApiClient,
@@ -28,6 +31,7 @@ export interface DashboardSnapshot {
   readonly summary: DashboardSummaryDto;
   readonly categories: readonly CategoryDto[];
   readonly tags: readonly TagDto[];
+  readonly preferences: PreferencesDto;
 }
 
 /** Loads the summary of a period plus the catalogs that label its movements. */
@@ -37,9 +41,10 @@ export async function loadDashboardSnapshot(
   query: DashboardSummaryQuery,
 ): Promise<ApiClientResult<DashboardSnapshot>> {
   const analyticsApi = createAnalyticsApi(client);
-  const [summary, catalogs] = await Promise.all([
+  const [summary, catalogs, preferences] = await Promise.all([
     analyticsApi.readSummary(query, { signal }),
     loadHistoryCatalogs(client, signal),
+    createPreferencesApi(client).getPreferences({ signal }),
   ]);
 
   if (!summary.ok) {
@@ -50,7 +55,11 @@ export async function loadDashboardSnapshot(
     return catalogs;
   }
 
-  if (summary.noContent || catalogs.noContent) {
+  if (!preferences.ok) {
+    return preferences;
+  }
+
+  if (summary.noContent || catalogs.noContent || preferences.noContent) {
     return { ok: false, reason: "invalidResponse", status: 204 };
   }
 
@@ -63,6 +72,7 @@ export async function loadDashboardSnapshot(
       summary: summary.data,
       categories: catalogs.data.categories,
       tags: catalogs.data.tags,
+      preferences: preferences.data,
     },
   };
 }

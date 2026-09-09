@@ -83,6 +83,37 @@ export const dashboardCopy = {
   tagEmptyDescription:
     "Cuando etiquetes un gasto del periodo verás aquí su reparto por etiquetas.",
   untagged: "Sin etiquetas",
+  categorySelectorTitle: "Categorías que se dibujan",
+  categorySelectorTrigger: "Categorías",
+  tagSelectorTitle: "Etiquetas que se dibujan",
+  tagSelectorTrigger: "Etiquetas",
+  selectionEmptyTitle: "No hay ninguna serie seleccionada",
+  selectionEmptyDescription:
+    "Elige al menos una serie para volver a dibujar estas barras. Los totales y las medias no cambian.",
+  selectAll: "Seleccionar todas",
+  averagesTitle: "Tu media mensual",
+  averagesCaption: "Medias mensuales de la ventana",
+  averagesWindow: (start: string, end: string, months: number) =>
+    `${start}–${end} · ${months === 1 ? "1 mes completo" : `${months} meses completos`}`,
+  averagesExcludesCurrentMonth:
+    "La ventana usa meses completos y nunca incluye el mes actual, que todavía está en curso.",
+  averagesLoading: "Cargando tus medias mensuales…",
+  averagesErrorTitle: "No se han podido cargar las medias mensuales",
+  averageExpense: "Gasto medio mensual",
+  averageNet: "Balance neto medio mensual",
+  averageCategoryTitle: "Media mensual por categoría",
+  averageCategoryCaption: "Media mensual de gasto por categoría",
+  averageTagTitle: "Media mensual por etiqueta",
+  averageTagCaption: "Media mensual de gasto por etiqueta",
+  averageCategoryEmptyTitle: "Sin gasto por categoría en la ventana",
+  averageCategoryEmptyDescription:
+    "Cuando la ventana contenga gasto verás aquí su media mensual por categoría.",
+  averageTagEmptyTitle: "Sin gasto por etiqueta en la ventana",
+  averageTagEmptyDescription:
+    "Cuando etiquetes gasto dentro de la ventana verás aquí su media mensual.",
+  averageColumn: "Media mensual",
+  unavailableAverage: "No disponible",
+  viewWindowMovements: "Ver movimientos de la ventana",
   archived: "Archivada",
   archivedOf: (label: string) => `${label} (archivada)`,
   amountColumn: "Importe",

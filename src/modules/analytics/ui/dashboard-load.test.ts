@@ -92,6 +92,26 @@ describe("loadDashboardSnapshot", () => {
     expect(result).toEqual({ ok: false, reason: "network" });
   });
 
+  it("keeps the failure of the preferences the selection is stored under", async () => {
+    const result = await load(
+      vi.fn<FetchLike>((path) =>
+        path.startsWith("/api/preferences")
+          ? Promise.resolve(
+              jsonResponse(503, {
+                error: {
+                  code: "serviceUnavailable",
+                  message: API_ERROR_MESSAGE.serviceUnavailable,
+                  requestId: REQUEST_ID,
+                },
+              }),
+            )
+          : dashboardFetch()(path, { method: "GET" }),
+      ),
+    );
+
+    expect(result).toMatchObject({ ok: false, reason: "api", status: 503 });
+  });
+
   it("refuses a summary answered without any representation", async () => {
     const result = await load(
       dashboardFetch({

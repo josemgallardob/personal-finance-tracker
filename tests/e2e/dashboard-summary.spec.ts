@@ -113,6 +113,61 @@ test.describe("financial dashboard", () => {
   });
 });
 
+test.describe("dashboard series selection", () => {
+  test("hides bars without touching the totals, and states the averages window", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForDashboard(page);
+
+    await expect(
+      page.getByRole("heading", {
+        name: dashboardCopy.averagesTitle,
+        level: 2,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(dashboardCopy.averagesExcludesCurrentMonth),
+    ).toBeVisible();
+    // Every movement of this suite is dated today, so no month has closed yet.
+    await expect(
+      page.getByRole("heading", { name: "Sin histórico suficiente" }),
+    ).toBeVisible();
+
+    const expenseBefore = await cardAmount(page, "expense");
+    const distribution = page
+      .locator("section")
+      .filter({
+        has: page.getByRole("heading", { name: dashboardCopy.categoryTitle }),
+      })
+      .first();
+
+    await distribution
+      .getByRole("button", {
+        name: new RegExp(`^${dashboardCopy.categorySelectorTrigger} · `),
+      })
+      .click();
+    const panel = page.getByRole("dialog", {
+      name: dashboardCopy.categorySelectorTitle,
+    });
+    await panel.getByRole("button", { name: "Quitar todas" }).click();
+    await panel.getByRole("button", { name: "Aplicar" }).click();
+
+    await expect(
+      page.getByRole("region", { name: dashboardCopy.selectionEmptyTitle }),
+    ).toBeVisible();
+    expect(await cardAmount(page, "expense")).toBeCloseTo(expenseBefore, 2);
+
+    await page
+      .getByRole("region", { name: dashboardCopy.selectionEmptyTitle })
+      .getByRole("button", { name: dashboardCopy.selectAll })
+      .click();
+    await expect(
+      page.getByRole("table", { name: dashboardCopy.categoryCaption }),
+    ).toBeVisible();
+  });
+});
+
 /** Horizontal overflow of the document, in CSS pixels. */
 async function horizontalOverflow(page: Page): Promise<number> {
   return page.evaluate(

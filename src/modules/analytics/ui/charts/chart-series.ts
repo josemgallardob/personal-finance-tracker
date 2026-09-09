@@ -209,14 +209,18 @@ function largestAmount(amounts: readonly number[]): number {
  * carries its share of it. An archived category that has an amount in the
  * window keeps its bar and is marked as archived: its amount already counts in
  * the totals, and hiding it would make the breakdown disagree with the cards.
+ * A group without any amount in the window draws nothing, because an empty bar
+ * says less than its absence.
  */
 export function expenseCategoryBars(
   entries: readonly CategoryExpenseDto[],
   expenseMinor: number,
 ): readonly BreakdownBar[] {
-  const largest = largestAmount(entries.map((entry) => entry.totalMinor));
+  // A group without an amount in the window draws no bar at all.
+  const drawn = entries.filter((entry) => entry.totalMinor !== 0);
+  const largest = largestAmount(drawn.map((entry) => entry.totalMinor));
 
-  return entries.map((entry) => ({
+  return drawn.map((entry) => ({
     id: entry.category.id,
     label: entry.category.name,
     totalMinor: entry.totalMinor,
@@ -242,11 +246,12 @@ export function expenseTagBars(
   breakdown: TagExpenseBreakdownDto,
 ): readonly BreakdownBar[] {
   const untagged = breakdown.untagged;
-  const amounts = breakdown.tags.map((entry) => entry.totalMinor);
+  const drawn = breakdown.tags.filter((entry) => entry.totalMinor !== 0);
+  const amounts = drawn.map((entry) => entry.totalMinor);
   const largest = largestAmount(
     untagged.totalMinor > 0 ? [...amounts, untagged.totalMinor] : amounts,
   );
-  const bars: BreakdownBar[] = breakdown.tags.map((entry) => ({
+  const bars: BreakdownBar[] = drawn.map((entry) => ({
     id: entry.tag.id,
     label: entry.tag.name,
     totalMinor: entry.totalMinor,

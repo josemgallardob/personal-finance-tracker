@@ -129,14 +129,23 @@ describe("expenseCategoryBars", () => {
     expect(bars[1].href).toContain("categoryId=cat-old");
   });
 
-  it("states no share when the period has no expense to divide by", () => {
+  it("draws no bar for a category without any amount in the period", () => {
     const bars = expenseCategoryBars(
-      [{ ...expenseByCategory[0], totalMinor: 0, transactionCount: 0 }],
-      0,
+      [
+        { ...expenseByCategory[0], totalMinor: 0, transactionCount: 0 },
+        expenseByCategory[1],
+      ],
+      30050,
     );
 
+    expect(bars.map((bar) => bar.id)).toEqual(["cat-old"]);
+  });
+
+  it("states no share when the period has no expense to divide by", () => {
+    const bars = expenseCategoryBars([expenseByCategory[0]], 0);
+
     expect(bars[0].shareLabel).toBeNull();
-    expect(bars[0].widthPercent).toBe(0);
+    expect(bars[0].widthPercent).toBe(100);
   });
 
   it("states no share and no width when the exact percentage is not representable", () => {
@@ -146,6 +155,15 @@ describe("expenseCategoryBars", () => {
     );
 
     expect(bars[0].shareLabel).toBeNull();
+    expect(bars[0].widthPercent).toBe(0);
+  });
+
+  it("draws no width for an amount the contract should never have sent", () => {
+    const bars = expenseCategoryBars(
+      [{ ...expenseByCategory[0], totalMinor: -100 }],
+      120050,
+    );
+
     expect(bars[0].widthPercent).toBe(0);
   });
 

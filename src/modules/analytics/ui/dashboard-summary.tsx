@@ -31,6 +31,7 @@ import { Button } from "../../../shared/ui/button";
 import { LoadingState } from "../../../shared/ui/loading-state";
 import { apiFailureMessage } from "../../transactions/ui/transaction-dialog-support";
 import { createAnalyticsApi } from "../client/analytics-api";
+import type { MonthlyAveragesDto } from "../contracts/averages";
 import type { MonthlyEvolutionDto } from "../contracts/evolution";
 import type { DashboardPeriod } from "../domain/periods";
 import { dashboardCopy } from "./dashboard-copy";
@@ -40,9 +41,19 @@ import {
   toDashboardSummaryQuery,
 } from "./dashboard-period";
 import { loadDashboardSnapshot } from "./dashboard-load";
+import { MonthlyAverages } from "./averages/monthly-averages";
 import { ExpenseCategoryBars } from "./charts/expense-category-bars";
 import { ExpenseTagBars } from "./charts/expense-tag-bars";
 import { MonthlyTrend } from "./charts/monthly-trend";
+import {
+  categorySeriesOptions,
+  idsWithAmount,
+  tagSeriesOptions,
+} from "./series/series-options";
+import { useSeriesSelection } from "./series/use-series-selection";
+import type { SeriesStorage } from "./series/series-selection";
+import type { SeriesSelection } from "./series/use-series-selection";
+import type { MultiSelectOption } from "../../../shared/ui/multi-select";
 import { PeriodComparison } from "./period-comparison";
 import { PeriodSelector } from "./period-selector";
 import { RecentTransactions } from "./recent-transactions";
@@ -52,6 +63,9 @@ import { formatDateRangeLabel } from "./summary-presentation";
 /** Identity of the evolution request, deliberately free of the period. */
 export const EVOLUTION_REQUEST_KEY = "analytics:evolution";
 
+/** Identity of the averages request, also free of the selected period. */
+export const AVERAGES_REQUEST_KEY = "analytics:averages";
+
 export interface DashboardSummaryProps {
   /**
    * Browser transport. The default talks to the current origin; tests inject
@@ -60,12 +74,15 @@ export interface DashboardSummaryProps {
   readonly client?: ApiClient;
   /** Period the dashboard opens on. Production uses the accepted default. */
   readonly initialPeriod?: DashboardPeriod;
+  /** Session storage of the series selection. Tests replace this boundary. */
+  readonly seriesStorage?: SeriesStorage | null;
 }
 
 /** Cards, comparison and recent movements of the selected period. */
 export function DashboardSummary({
   client,
   initialPeriod = DEFAULT_DASHBOARD_PERIOD,
+  seriesStorage,
 }: DashboardSummaryProps = {}) {
   const apiClient = useMemo(() => client ?? createApiClient(), [client]);
   const [period, setPeriod] = useState<DashboardPeriod>(initialPeriod);
@@ -89,7 +106,70 @@ export function DashboardSummary({
     refreshEpoch,
     load: (signal) => analyticsApi.readEvolution({ signal }),
   });
+  // The averages divide by their own window of closed months, so their request
+  // identity ignores the period selector just as the evolution one does.
+  const averages = useResource({
+    requestKey: AVERAGES_REQUEST_KEY,
+    revision,
+    refreshEpoch,
+    load: (signal) => analyticsApi.readAverages({ signal }),
+  });
   const data = snapshot.data;
+  const averagesData = averages.data;
+  const categoryOptions = useMemo(
+    () =>
+      categorySeriesOptions(
+        data?.categories ?? [],
+        idsWithAmount(
+          (data?.summary.expenseByCategory ?? []).map((entry) => ({
+            id: entry.category.id,
+            totalMinor: entry.totalMinor,
+          })),
+          averagesData?.kind === "months"
+            ? averagesData.byCategory.map((entry) => ({
+                id: entry.category.id,
+                totalMinor: entry.totalMinor,
+              }))
+            : [],
+        ),
+      ),
+    [averagesData, data],
+  );
+  const tagOptions = useMemo(
+    () =>
+      tagSeriesOptions(
+        data?.tags ?? [],
+        idsWithAmount(
+          (data?.summary.expenseByTag.tags ?? []).map((entry) => ({
+            id: entry.tag.id,
+            totalMinor: entry.totalMinor,
+          })),
+          averagesData?.kind === "months"
+            ? averagesData.byTag.map((entry) => ({
+                id: entry.tag.id,
+                totalMinor: entry.totalMinor,
+              }))
+            : [],
+        ),
+        (data?.summary.expenseByTag.untagged.totalMinor ?? 0) !== 0 ||
+          (averagesData?.kind === "months" &&
+            averagesData.untagged.totalMinor !== 0),
+      ),
+    [averagesData, data],
+  );
+  const mode = data?.preferences.mode ?? null;
+  const categorySelection = useSeriesSelection({
+    dimension: "categories",
+    mode,
+    options: categoryOptions,
+    storage: seriesStorage,
+  });
+  const tagSelection = useSeriesSelection({
+    dimension: "tags",
+    mode,
+    options: tagOptions,
+    storage: seriesStorage,
+  });
 
   return (
     <div className="flex w-full max-w-full min-w-0 flex-col gap-6">
@@ -138,8 +218,21 @@ export function DashboardSummary({
           <ExpenseCategoryBars
             entries={data.summary.expenseByCategory}
             expenseMinor={data.summary.totals.current.expenseMinor}
+            options={categoryOptions}
+            selection={categorySelection}
           />
-          <ExpenseTagBars breakdown={data.summary.expenseByTag} />
+          <ExpenseTagBars
+            breakdown={data.summary.expenseByTag}
+            options={tagOptions}
+            selection={tagSelection}
+          />
+          <MonthlyAveragesSection
+            categoryOptions={categoryOptions}
+            categorySelection={categorySelection}
+            snapshot={averages}
+            tagOptions={tagOptions}
+            tagSelection={tagSelection}
+          />
           <RecentTransactions
             categories={data.categories}
             client={apiClient}
@@ -202,5 +295,43 @@ function ChartLoadFailure({
         {dashboardCopy.retry}
       </Button>
     </div>
+  );
+}
+
+function MonthlyAveragesSection({
+  categoryOptions,
+  categorySelection,
+  snapshot,
+  tagOptions,
+  tagSelection,
+}: {
+  readonly categoryOptions: readonly MultiSelectOption[];
+  readonly categorySelection: SeriesSelection;
+  readonly snapshot: ResourceSnapshot<MonthlyAveragesDto>;
+  readonly tagOptions: readonly MultiSelectOption[];
+  readonly tagSelection: SeriesSelection;
+}) {
+  if (snapshot.status === "loading") {
+    return <LoadingState label={dashboardCopy.averagesLoading} />;
+  }
+
+  if (snapshot.data === undefined) {
+    return (
+      <ChartLoadFailure
+        error={snapshot.error}
+        onRetry={snapshot.refetch}
+        title={dashboardCopy.averagesErrorTitle}
+      />
+    );
+  }
+
+  return (
+    <MonthlyAverages
+      averages={snapshot.data}
+      categoryOptions={categoryOptions}
+      categorySelection={categorySelection}
+      tagOptions={tagOptions}
+      tagSelection={tagSelection}
+    />
   );
 }
