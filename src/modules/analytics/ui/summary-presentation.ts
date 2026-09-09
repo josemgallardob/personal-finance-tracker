@@ -128,17 +128,17 @@ export function formatDateRangeLabel(range: DateRangeDto): string {
 /**
  * History URL that reproduces one figure, or null when it cannot be navigated.
  *
- * The history filters movements by interval, type, category and tags. It has no
- * filter for the computed group of expense without tags, and a descriptor whose
- * interval is not a real civil date is a broken contract, so both cases report
- * that the figure is not navigable instead of opening a history that would show
- * a wider set of movements than the figure was made of.
+ * The descriptor travels whole: the inclusive interval, the movement type, the
+ * category, the tags of an OR filter and the computed untagged group, which the
+ * history filters as its own mutually exclusive condition. Nothing is added and
+ * nothing is dropped, so the list the owner lands on is made of exactly the
+ * movements the figure was computed from.
+ *
+ * A descriptor whose interval is not a real civil date is a broken contract
+ * rather than a filter, so it reports that the figure is not navigable instead
+ * of opening a history wider than the figure.
  */
 export function drillDownHistoryHref(drillDown: DrillDownDto): string | null {
-  if (drillDown.untagged) {
-    return null;
-  }
-
   const dateFrom = parseLocalDate(drillDown.dateFrom);
   const dateTo = parseLocalDate(drillDown.dateTo);
 
@@ -153,5 +153,6 @@ export function drillDownHistoryHref(drillDown: DrillDownDto): string | null {
     type: drillDown.type,
     categoryId: drillDown.categoryId,
     tagIds: drillDown.tagIds,
+    untagged: drillDown.untagged,
   });
 }

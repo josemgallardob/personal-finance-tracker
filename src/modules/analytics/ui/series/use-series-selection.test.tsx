@@ -42,13 +42,14 @@ function Harness({
 }: {
   readonly mode?: string | null;
   readonly options?: readonly MultiSelectOption[];
-  readonly storage: SeriesStorage | null;
+  /** Undefined asks the hook for the real session of the browser. */
+  readonly storage: SeriesStorage | null | undefined;
 }) {
   const selection = useSeriesSelection({
     dimension: "categories",
     mode,
     options,
-    storage,
+    ...(storage === undefined ? {} : { storage }),
   });
 
   return (
@@ -215,5 +216,28 @@ describe("useSeriesSelection", () => {
     );
 
     expect(ids()).toBe("cat-old");
+  });
+});
+
+describe("useSeriesSelection against the real session storage", () => {
+  it("reads and writes the session of the browser when none is injected", async () => {
+    window.sessionStorage.clear();
+
+    render(
+      <Harness options={catalog} storage={undefined as unknown as null} />,
+    );
+    await waitFor(() => {
+      expect(ids()).toBe("cat-food");
+    });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Elegir archivada" }),
+    );
+
+    expect(ids()).toBe("cat-old");
+    expect(
+      window.sessionStorage.getItem("dashboard:series:categories:personal"),
+    ).toBe('["cat-old"]');
+    window.sessionStorage.clear();
   });
 });

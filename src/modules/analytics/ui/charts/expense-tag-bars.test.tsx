@@ -67,7 +67,7 @@ describe("ExpenseTagBars", () => {
     ).toEqual(["800,00 €", "2 movimientos"]);
   });
 
-  it("adds the computed untagged group with its amount and no history link", () => {
+  it("adds the computed untagged group with its amount and its own history", () => {
     renderBars();
 
     const row = within(table())
@@ -79,7 +79,34 @@ describe("ExpenseTagBars", () => {
         .getAllByRole("cell")
         .map((cell) => withPlainSpaces(cell.textContent)),
     ).toEqual(["400,50 €", "1 movimiento"]);
+    expect(
+      within(row).getByRole("link", { name: dashboardCopy.untagged }),
+    ).toHaveAttribute(
+      "href",
+      "/transactions?dateFrom=2026-09-01&dateTo=2026-09-08&type=expense&untagged=true&tab=all",
+    );
+  });
+
+  it("keeps a group whose interval cannot be opened as plain text", () => {
+    renderBars({
+      ...expenseByTag,
+      tags: [
+        {
+          ...expenseByTag.tags[0],
+          drillDown: {
+            ...expenseByTag.tags[0].drillDown,
+            dateFrom: "2026-13-01",
+          },
+        },
+      ],
+    });
+
+    const row = within(table())
+      .getByRole("rowheader", { name: /Viajes/ })
+      .closest("tr") as HTMLElement;
+
     expect(within(row).queryByRole("link")).not.toBeInTheDocument();
+    expect(within(row).getByText("Viajes")).toBeVisible();
   });
 
   it("omits the untagged group when every expense of the period is tagged", () => {

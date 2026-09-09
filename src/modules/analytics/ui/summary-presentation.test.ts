@@ -119,8 +119,12 @@ describe("drillDownHistoryHref", () => {
     );
   });
 
-  it("refuses to navigate the untagged group the history cannot filter", () => {
-    expect(drillDownHistoryHref({ ...drillDown, untagged: true })).toBeNull();
+  it("opens the history on the computed group of expense without tags", () => {
+    expect(
+      drillDownHistoryHref({ ...drillDown, type: "expense", untagged: true }),
+    ).toBe(
+      "/transactions?dateFrom=2026-09-01&dateTo=2026-09-08&type=expense&untagged=true&tab=all",
+    );
   });
 
   it("refuses to navigate an interval that is not a civil date", () => {

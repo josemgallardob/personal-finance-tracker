@@ -552,6 +552,39 @@ describe("HistoryList", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("asks the API for the computed untagged group when it arrives in the URL", async () => {
+    const fetchImpl = historyFetch();
+    render(
+      <FinancialDataProvider>
+        <HistoryList
+          client={createApiClient({ fetch: fetchImpl })}
+          onQueryStateChange={vi.fn()}
+          queryState={{
+            ...emptyHistoryQueryState,
+            type: "expense",
+            untagged: true,
+          }}
+        />
+      </FinancialDataProvider>,
+    );
+
+    await waitFor(() => {
+      expect(
+        fetchImpl.mock.calls.some(([path]) =>
+          String(path).startsWith("/api/transactions?"),
+        ),
+      ).toBe(true);
+    });
+
+    const listPath = fetchImpl.mock.calls
+      .map(([path]) => String(path))
+      .find((path) => path.startsWith("/api/transactions?"));
+
+    expect(listPath).toContain("untagged=true");
+    expect(listPath).toContain("type=expense");
+    expect(listPath).not.toContain("tagId=");
+  });
+
   it("debounces search, combines filters without duplicate tags, and encodes the list URL", async () => {
     const fetchImpl = historyFetch();
     render(<ControlledHistory fetchImpl={fetchImpl} />);

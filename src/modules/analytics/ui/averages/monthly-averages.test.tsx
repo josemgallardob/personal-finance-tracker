@@ -197,7 +197,10 @@ describe("MonthlyAverages", () => {
             ...averages,
             totalExpense: {
               ...averages.totalExpense,
-              drillDown: { ...averages.totalExpense.drillDown, untagged: true },
+              drillDown: {
+                ...averages.totalExpense.drillDown,
+                dateFrom: "2025-13-01",
+              },
             },
           }
         : averages;

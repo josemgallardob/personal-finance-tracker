@@ -3,34 +3,17 @@ import { expect, test, type Page } from "@playwright/test";
 import { dashboardCopy } from "../../src/modules/analytics/ui/dashboard-copy";
 import {
   chooseMovementType,
+  dashboardCardAmount,
   fillRequiredFields,
   incomeCategory,
   openCreateDialog,
+  waitForDashboardCards,
 } from "./helpers";
 
 const incomeConcept = "Ingreso panel E2E";
 
-/** Reads a card figure as an exact number of EUR, dropping the locale marks. */
-async function cardAmount(
-  page: Page,
-  card: "income" | "expense" | "net",
-): Promise<number> {
-  const text = await page
-    .locator(`[data-summary-card="${card}"] [data-summary-amount]`)
-    .innerText();
-  const normalized = text
-    .replace(/[^\d,.-]/g, "")
-    .replaceAll(".", "")
-    .replace(",", ".");
-
-  return Number(normalized);
-}
-
-async function waitForDashboard(page: Page): Promise<void> {
-  await expect(
-    page.getByRole("list", { name: dashboardCopy.summaryLabel }),
-  ).toBeVisible();
-}
+const cardAmount = dashboardCardAmount;
+const waitForDashboard = waitForDashboardCards;
 
 test.describe("financial dashboard", () => {
   test("recalculates the cards after an income and keeps its period across the history", async ({

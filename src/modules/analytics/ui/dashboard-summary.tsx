@@ -3,9 +3,10 @@
 /**
  * Dashboard of the selected period.
  *
- * The period lives in this component and never in the URL: the history owns the
- * query string, so navigating to a filtered history and coming back leaves the
- * cards exactly on the period they were showing. Changing the period changes
+ * The period lives in the session and never in the URL: the history owns the
+ * query string, so a filter applied there cannot move the months of the cards,
+ * while leaving the dashboard to read the movements behind a figure and coming
+ * back returns to the period that was being read. Changing the period changes
  * the request identity, which aborts the in-flight call and discards a slower
  * answer that belonged to the previous selection.
  *
@@ -13,9 +14,14 @@
  * deleted from anywhere under the shell recomputes these figures without a
  * manual reload; a failed mutation never touches the revision and therefore
  * never repaints the cards.
+ *
+ * The three reads fail independently and say so where they belong. The period
+ * of the cards, the evolution window and the averages window are separate
+ * questions, so a refused one explains itself and offers its own retry while
+ * the other two keep showing the figures they did receive.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import {
   createApiClient,
@@ -41,6 +47,7 @@ import {
   toDashboardSummaryQuery,
 } from "./dashboard-period";
 import { loadDashboardSnapshot } from "./dashboard-load";
+import { useDashboardPeriod } from "./dashboard-period-store";
 import { MonthlyAverages } from "./averages/monthly-averages";
 import { ExpenseCategoryBars } from "./charts/expense-category-bars";
 import { ExpenseTagBars } from "./charts/expense-tag-bars";
@@ -74,7 +81,10 @@ export interface DashboardSummaryProps {
   readonly client?: ApiClient;
   /** Period the dashboard opens on. Production uses the accepted default. */
   readonly initialPeriod?: DashboardPeriod;
-  /** Session storage of the series selection. Tests replace this boundary. */
+  /**
+   * Session storage of the period and of the series selection. Tests replace
+   * this boundary.
+   */
   readonly seriesStorage?: SeriesStorage | null;
 }
 
@@ -85,7 +95,10 @@ export function DashboardSummary({
   seriesStorage,
 }: DashboardSummaryProps = {}) {
   const apiClient = useMemo(() => client ?? createApiClient(), [client]);
-  const [period, setPeriod] = useState<DashboardPeriod>(initialPeriod);
+  const { period, setPeriod } = useDashboardPeriod({
+    initialPeriod,
+    storage: seriesStorage,
+  });
   const { revision, refreshEpoch } = useFinancialDataRevision();
   const snapshot = useResource({
     requestKey: dashboardPeriodRequestKey(period),
@@ -201,7 +214,7 @@ export function DashboardSummary({
       ) : null}
       {data === undefined ? null : (
         <>
-          <p className="text-body-sm text-text-muted">
+          <p className="text-body-sm text-text-muted" data-period-range="">
             {dashboardCopy.periodRange(
               formatDateRangeLabel(data.summary.range),
             )}
@@ -214,7 +227,6 @@ export function DashboardSummary({
             comparison={data.summary.comparison}
             totals={data.summary.totals}
           />
-          <MonthlyTrendSection snapshot={evolution} />
           <ExpenseCategoryBars
             entries={data.summary.expenseByCategory}
             expenseMinor={data.summary.totals.current.expenseMinor}
@@ -226,13 +238,6 @@ export function DashboardSummary({
             options={tagOptions}
             selection={tagSelection}
           />
-          <MonthlyAveragesSection
-            categoryOptions={categoryOptions}
-            categorySelection={categorySelection}
-            snapshot={averages}
-            tagOptions={tagOptions}
-            tagSelection={tagSelection}
-          />
           <RecentTransactions
             categories={data.categories}
             client={apiClient}
@@ -241,6 +246,16 @@ export function DashboardSummary({
           />
         </>
       )}
+      {/* The series and the averages answer windows of their own, so they are
+          drawn even when the period of the cards could not be read. */}
+      <MonthlyTrendSection snapshot={evolution} />
+      <MonthlyAveragesSection
+        categoryOptions={categoryOptions}
+        categorySelection={categorySelection}
+        snapshot={averages}
+        tagOptions={tagOptions}
+        tagSelection={tagSelection}
+      />
     </div>
   );
 }

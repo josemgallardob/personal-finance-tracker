@@ -566,3 +566,235 @@ describe("DashboardSummary series selection", () => {
     ).toBeVisible();
   });
 });
+
+describe("DashboardSummary period across a visit to the history", () => {
+  it("restores the period the owner was reading when the dashboard opens again", async () => {
+    const storage = memoryStorage();
+    const fetchImpl = dashboardFetch({
+      summaries: [summary, recalculatedSummary, summary],
+    });
+    const { unmount } = renderDashboard(fetchImpl, storage);
+    await waitForIncome("2500,00 €");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: dashboardCopy.lastThreeMonths }),
+    );
+    await waitForIncome("3000,00 €");
+    expect(storage.entries["dashboard:period"]).toBe(
+      '{"kind":"lastThreeMonths"}',
+    );
+
+    // Leaving for the history unmounts the dashboard; coming back must not
+    // return the owner to the default period.
+    unmount();
+    renderDashboard(fetchImpl, storage);
+    await waitForIncome("2500,00 €");
+
+    expect(
+      screen.getByRole("button", { name: dashboardCopy.lastThreeMonths }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(summaryCalls(fetchImpl).at(-1)).toBe(
+      "/api/analytics/summary?period=lastThreeMonths",
+    );
+  });
+
+  it("restores a custom range of complete months as well", async () => {
+    const storage = memoryStorage({
+      "dashboard:period":
+        '{"kind":"customMonthRange","from":"2026-01","to":"2026-03"}',
+    });
+    const fetchImpl = dashboardFetch();
+
+    renderDashboard(fetchImpl, storage);
+    await waitForIncome("2500,00 €");
+
+    expect(
+      screen.getByRole("button", {
+        name: `${dashboardCopy.customMonthRange}: 01/2026 – 03/2026`,
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(summaryCalls(fetchImpl)).toEqual([
+      "/api/analytics/summary?period=customMonthRange&from=2026-01&to=2026-03",
+    ]);
+  });
+
+  it("ignores a stored period that is not a documented one", async () => {
+    const fetchImpl = dashboardFetch();
+    renderDashboard(
+      fetchImpl,
+      memoryStorage({ "dashboard:period": '{"kind":"lastFiveYears"}' }),
+    );
+
+    await waitForIncome("2500,00 €");
+
+    expect(summaryCalls(fetchImpl)).toEqual([
+      "/api/analytics/summary?period=currentMonth",
+    ]);
+  });
+});
+
+describe("DashboardSummary partial failures and drill-downs", () => {
+  it("keeps the series and the averages when the period cannot be read", async () => {
+    const fetchImpl = vi.fn<FetchLike>((path, init) => {
+      if (path.startsWith("/api/analytics/summary")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              error: {
+                code: "serviceUnavailable",
+                message: API_ERROR_MESSAGE.serviceUnavailable,
+                requestId: REQUEST_ID,
+              },
+            }),
+            {
+              status: 503,
+              headers: {
+                "content-type": "application/json; charset=utf-8",
+                [REQUEST_ID_HEADER]: REQUEST_ID,
+              },
+            },
+          ),
+        );
+      }
+
+      return dashboardFetch()(path, init);
+    });
+
+    renderDashboard(fetchImpl);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(dashboardCopy.errorTitle);
+
+    // The other two windows are separate questions and still have answers.
+    await waitFor(() => {
+      expect(screen.getByText("07/2026–09/2026 · 3 meses")).toBeVisible();
+    });
+    expect(
+      screen.getByRole("heading", { name: dashboardCopy.averagesTitle }),
+    ).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
+  it("opens the history of each card on the filter that produced it", async () => {
+    renderDashboard(dashboardFetch());
+    await waitForIncome("2500,00 €");
+
+    const cards = screen.getByRole("list", {
+      name: dashboardCopy.summaryLabel,
+    });
+
+    expect(
+      within(cards).getByRole("link", { name: dashboardCopy.viewIncome }),
+    ).toHaveAttribute(
+      "href",
+      "/transactions?dateFrom=2026-09-01&dateTo=2026-09-08&type=income&tab=all",
+    );
+    // The net card is both types at once, so it carries no type at all.
+    expect(
+      within(cards).getByRole("link", { name: dashboardCopy.viewNet }),
+    ).toHaveAttribute(
+      "href",
+      "/transactions?dateFrom=2026-09-01&dateTo=2026-09-08&tab=all",
+    );
+  });
+
+  it("opens the history of a month, a category, a tag and the untagged group", async () => {
+    renderDashboard(dashboardFetch());
+    await waitForIncome("2500,00 €");
+
+    expect(
+      within(
+        screen.getByRole("table", { name: dashboardCopy.trendCaption }),
+      ).getByRole("link", { name: "07/2026" }),
+    ).toHaveAttribute(
+      "href",
+      "/transactions?dateFrom=2026-07-01&dateTo=2026-07-31&tab=all",
+    );
+    expect(
+      within(
+        screen.getByRole("table", { name: dashboardCopy.categoryCaption }),
+      ).getByRole("link", { name: "Alimentación" }),
+    ).toHaveAttribute(
+      "href",
+      "/transactions?dateFrom=2026-09-01&dateTo=2026-09-08&type=expense&categoryId=cat-food&tab=all",
+    );
+
+    const tagTable = screen.getByRole("table", {
+      name: dashboardCopy.tagCaption,
+    });
+    expect(
+      within(tagTable).getByRole("link", { name: "Viajes" }),
+    ).toHaveAttribute(
+      "href",
+      "/transactions?dateFrom=2026-09-01&dateTo=2026-09-08&type=expense&tagId=tag-trips&tab=all",
+    );
+    expect(
+      within(tagTable).getByRole("link", { name: dashboardCopy.untagged }),
+    ).toHaveAttribute(
+      "href",
+      "/transactions?dateFrom=2026-09-01&dateTo=2026-09-08&type=expense&untagged=true&tab=all",
+    );
+  });
+
+  it("opens an average on its own window, not on the period of the cards", async () => {
+    renderDashboard(dashboardFetch());
+    await waitForIncome("2500,00 €");
+
+    const averageTable = screen.getByRole("table", {
+      name: dashboardCopy.averageCategoryCaption,
+    });
+    const href = within(averageTable)
+      .getByRole("link", { name: "Alimentación" })
+      .getAttribute("href");
+
+    expect(href).toContain("dateFrom=2025-09-01");
+    expect(href).toContain("dateTo=2026-08-31");
+    expect(href).not.toContain("dateFrom=2026-09-01");
+  });
+
+  it("refreshes the three analytics reads after a successful mutation", async () => {
+    const fetchImpl = dashboardFetch({
+      summaries: [summary, recalculatedSummary],
+    });
+
+    renderDashboard(fetchImpl);
+    await waitForIncome("2500,00 €");
+
+    const before = fetchImpl.mock.calls.filter(([path]) =>
+      path.startsWith("/api/analytics/"),
+    ).length;
+    expect(before).toBe(3);
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: historyCopy.actionsOf("Supermercado"),
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: historyCopy.deleteAction }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: transactionMaintenanceCopy.deleteTitle,
+    });
+    await userEvent.click(
+      within(dialog).getByRole("button", {
+        name: transactionMaintenanceCopy.deleteConfirm,
+      }),
+    );
+
+    await waitForIncome("3000,00 €");
+    await waitFor(() => {
+      expect(
+        fetchImpl.mock.calls.filter(([path]) =>
+          path.startsWith("/api/analytics/averages"),
+        ),
+      ).toHaveLength(2);
+    });
+    expect(
+      fetchImpl.mock.calls.filter(([path]) =>
+        path.startsWith("/api/analytics/evolution"),
+      ),
+    ).toHaveLength(2);
+    expect(summaryCalls(fetchImpl)).toHaveLength(2);
+  });
+});

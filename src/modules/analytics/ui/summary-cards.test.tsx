@@ -155,12 +155,12 @@ describe("SummaryCards", () => {
     );
   });
 
-  it("omits the link of a figure the history cannot reproduce", () => {
+  it("omits the link of a figure whose interval is not a civil date", () => {
     render(
       <SummaryCards
         drillDowns={{
           ...summary.drillDowns,
-          expense: { ...summary.drillDowns.expense, untagged: true },
+          expense: { ...summary.drillDowns.expense, dateFrom: "2026-13-01" },
         }}
         totals={totals}
       />,

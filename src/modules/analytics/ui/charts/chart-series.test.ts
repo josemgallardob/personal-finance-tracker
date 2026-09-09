@@ -205,8 +205,9 @@ describe("expenseTagBars", () => {
       archived: false,
     });
     expect(withPlainSpaces(untagged?.amountLabel ?? null)).toBe("400,50 €");
-    // The history has no untagged filter yet, so the group is not navigable.
-    expect(untagged?.href).toBeNull();
+    // The group opens the history on its own mutually exclusive filter.
+    expect(untagged?.href).toContain("untagged=true");
+    expect(untagged?.href).not.toContain("tagId=");
   });
 
   it("omits the untagged group when every expense of the period is tagged", () => {
