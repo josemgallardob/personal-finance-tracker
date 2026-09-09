@@ -112,3 +112,50 @@ test.describe("financial dashboard", () => {
     ).toBeVisible();
   });
 });
+
+/** Horizontal overflow of the document, in CSS pixels. */
+async function horizontalOverflow(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
+  );
+}
+
+test.describe("financial dashboard on a narrow viewport", () => {
+  test.use({ viewport: { width: 320, height: 640 } });
+
+  test("keeps every chart section readable without horizontal scroll", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForDashboard(page);
+
+    for (const title of [
+      dashboardCopy.comparisonTitle,
+      dashboardCopy.trendTitle,
+      dashboardCopy.categoryTitle,
+      dashboardCopy.tagTitle,
+    ]) {
+      await expect(
+        page.getByRole("heading", { name: title, level: 2 }),
+      ).toBeVisible();
+    }
+
+    await expect(
+      page.locator(
+        '[data-chart="monthly-trend"] .recharts-responsive-container',
+      ),
+    ).toBeVisible();
+    await expect(page.getByText(dashboardCopy.trendIndependent)).toBeVisible();
+    await expect(page.getByText(dashboardCopy.tagOverlap)).toBeVisible();
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+
+    // Half the usual viewport is what a 200 % zoom leaves to the layout.
+    await page.setViewportSize({ width: 640, height: 512 });
+    await expect(
+      page.getByRole("heading", { name: dashboardCopy.tagTitle, level: 2 }),
+    ).toBeVisible();
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+  });
+});

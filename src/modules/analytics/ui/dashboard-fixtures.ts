@@ -9,10 +9,13 @@ import {
   movement,
 } from "../../transactions/ui/transaction-dialog-fixtures";
 import type { DrillDownDto } from "../contracts/drill-down";
+import type { MonthlyEvolutionDto } from "../contracts/evolution";
 import type {
+  CategoryExpenseDto,
   ComparedPeriodTotalsDto,
   DashboardSummaryDto,
   DateRangeDto,
+  TagExpenseBreakdownDto,
 } from "../contracts/summary";
 
 /** Interval of the fixed period every dashboard fixture is aggregated over. */
@@ -38,6 +41,24 @@ function drillDown(
     categoryId: null,
     tagIds: [],
     untagged: false,
+  };
+}
+
+function monthTotals(month: string, incomeMinor: number, expenseMinor: number) {
+  const range = {
+    start: `${month}-01`,
+    end: `${month}-${month === "2026-09" ? "30" : "31"}`,
+  };
+
+  return {
+    month,
+    incomeMinor,
+    expenseMinor,
+    incomeCount: incomeMinor === 0 ? 0 : 1,
+    expenseCount: expenseMinor === 0 ? 0 : 2,
+    drillDown: drillDown(null, range),
+    incomeDrillDown: drillDown("income", range),
+    expenseDrillDown: drillDown("expense", range),
   };
 }
 
@@ -97,6 +118,89 @@ export const totals: ComparedPeriodTotalsDto = {
   },
 };
 
+/**
+ * Expense by category of the fixture period.
+ *
+ * The two groups add up to the 1.200,50 € of expense of the period, and one of
+ * them is archived: its amount still counts, so its row is still drawn.
+ */
+export const expenseByCategory: readonly CategoryExpenseDto[] = [
+  {
+    category: {
+      id: "cat-food",
+      name: "Alimentación",
+      type: "expense",
+      isArchived: false,
+    },
+    totalMinor: 90000,
+    transactionCount: 2,
+    drillDown: { ...drillDown("expense"), categoryId: "cat-food" },
+  },
+  {
+    category: {
+      id: "cat-old",
+      name: "Antigua",
+      type: "expense",
+      isArchived: true,
+    },
+    totalMinor: 30050,
+    transactionCount: 1,
+    drillDown: { ...drillDown("expense"), categoryId: "cat-old" },
+  },
+];
+
+/**
+ * Expense by tag of the fixture period.
+ *
+ * The groups overlap and their sum is larger than the expense of the period,
+ * which is exactly what the section has to explain. The window also contains
+ * expense without any tag, so the computed untagged group applies.
+ */
+export const expenseByTag: TagExpenseBreakdownDto = {
+  tags: [
+    {
+      tag: { id: "tag-trips", name: "Viajes", isArchived: false },
+      totalMinor: 80000,
+      transactionCount: 2,
+      drillDown: { ...drillDown("expense"), tagIds: ["tag-trips"] },
+    },
+    {
+      tag: { id: "tag-old", name: "Vieja", isArchived: true },
+      totalMinor: 20000,
+      transactionCount: 1,
+      drillDown: { ...drillDown("expense"), tagIds: ["tag-old"] },
+    },
+  ],
+  untagged: {
+    totalMinor: 40050,
+    transactionCount: 1,
+    drillDown: { ...drillDown("expense"), untagged: true },
+  },
+  overlapping: true,
+};
+
+/**
+ * Monthly evolution as the API returns it.
+ *
+ * The window is the one the series owns, not the period of the cards, and it
+ * keeps a month without movements at zero so the axis is not compressed.
+ */
+export const evolution: MonthlyEvolutionDto = {
+  kind: "months",
+  window: {
+    start: "2026-07",
+    end: "2026-09",
+    months: ["2026-07", "2026-08", "2026-09"],
+    monthCount: 3,
+    range: { start: "2026-07-01", end: "2026-09-30" },
+  },
+  months: [
+    monthTotals("2026-07", 200000, 150000),
+    monthTotals("2026-08", 0, 0),
+    monthTotals("2026-09", 250000, 120050),
+  ],
+};
+
 /** Summary of the current month as the API returns it. */
 export const summary: DashboardSummaryDto = {
   period: { kind: "currentMonth", from: null, to: null },
@@ -108,16 +212,8 @@ export const summary: DashboardSummaryDto = {
     expense: drillDown("expense"),
     net: drillDown(null),
   },
-  expenseByCategory: [],
-  expenseByTag: {
-    tags: [],
-    untagged: {
-      totalMinor: 0,
-      transactionCount: 0,
-      drillDown: { ...drillDown("expense"), untagged: true },
-    },
-    overlapping: true,
-  },
+  expenseByCategory,
+  expenseByTag,
   recentTransactions: [incomeMovement, movement],
 };
 
@@ -134,6 +230,10 @@ export interface DashboardFetchOptions {
   readonly summaries?: readonly DashboardSummaryDto[];
   /** Answers the summary request with this response instead of a summary. */
   readonly summaryResponse?: () => Response;
+  /** Series the evolution request answers with. */
+  readonly evolution?: MonthlyEvolutionDto;
+  /** Answers the evolution request with this response instead of a series. */
+  readonly evolutionResponse?: () => Response;
 }
 
 /**
@@ -159,6 +259,16 @@ export function dashboardFetch(
       call += 1;
 
       return Promise.resolve(jsonResponse(200, envelope(summaries[index])));
+    }
+
+    if (path.startsWith("/api/analytics/evolution")) {
+      if (options.evolutionResponse) {
+        return Promise.resolve(options.evolutionResponse());
+      }
+
+      return Promise.resolve(
+        jsonResponse(200, envelope(options.evolution ?? evolution)),
+      );
     }
 
     return fallback(path, init);

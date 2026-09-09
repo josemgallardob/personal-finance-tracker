@@ -13,6 +13,7 @@
  */
 
 import { cx } from "../../../shared/ui/class-names";
+import { IncomeExpenseComparison } from "./charts/income-expense-comparison";
 import type {
   ComparedPeriodTotalsDto,
   ComparisonDeltaDto,
@@ -93,6 +94,7 @@ export function PeriodComparison({
           formatDateRangeLabel(comparison.previous),
         )}
       </p>
+      <IncomeExpenseComparison comparison={comparison} totals={totals} />
       <div className="w-full max-w-full min-w-0 overflow-x-auto">
         <table className="w-full max-w-full min-w-0 border-collapse text-left">
           <caption className="sr-only">{dashboardCopy.comparisonTitle}</caption>

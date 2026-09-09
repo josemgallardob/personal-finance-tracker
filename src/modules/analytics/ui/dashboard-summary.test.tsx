@@ -66,6 +66,14 @@ function renderDashboard(fetchImpl: FetchLike) {
   );
 }
 
+function evolutionCalls(
+  fetchImpl: ReturnType<typeof vi.fn<FetchLike>>,
+): string[] {
+  return fetchImpl.mock.calls
+    .map(([path]) => path)
+    .filter((path) => path.startsWith("/api/analytics/evolution"));
+}
+
 function summaryCalls(
   fetchImpl: ReturnType<typeof vi.fn<FetchLike>>,
 ): string[] {
@@ -246,5 +254,101 @@ describe("DashboardSummary states", () => {
     expect(
       screen.getByRole("button", { name: dashboardCopy.previousMonth }),
     ).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("DashboardSummary evolution", () => {
+  it("keeps the evolution window when the period of the cards changes", async () => {
+    const fetchImpl = dashboardFetch({
+      summaries: [summary, recalculatedSummary],
+    });
+
+    renderDashboard(fetchImpl);
+    await waitForIncome("2500,00 €");
+    expect(screen.getByText("07/2026–09/2026 · 3 meses")).toBeVisible();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: dashboardCopy.currentYear }),
+    );
+    await waitForIncome("3000,00 €");
+
+    expect(summaryCalls(fetchImpl)).toHaveLength(2);
+    expect(evolutionCalls(fetchImpl)).toEqual(["/api/analytics/evolution"]);
+    expect(screen.getByText("07/2026–09/2026 · 3 meses")).toBeVisible();
+  });
+
+  it("explains a failed series without hiding the figures of the period", async () => {
+    let refused = true;
+    const fetchImpl = vi.fn<FetchLike>((path, init) => {
+      if (path.startsWith("/api/analytics/evolution") && refused) {
+        refused = false;
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              error: {
+                code: "serviceUnavailable",
+                message: API_ERROR_MESSAGE.serviceUnavailable,
+                requestId: REQUEST_ID,
+              },
+            }),
+            {
+              status: 503,
+              headers: {
+                "content-type": "application/json; charset=utf-8",
+                [REQUEST_ID_HEADER]: REQUEST_ID,
+              },
+            },
+          ),
+        );
+      }
+
+      return dashboardFetch()(path, init);
+    });
+
+    renderDashboard(fetchImpl);
+    await waitForIncome("2500,00 €");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(dashboardCopy.trendErrorTitle);
+
+    await userEvent.click(
+      within(alert).getByRole("button", { name: dashboardCopy.retry }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("07/2026–09/2026 · 3 meses")).toBeVisible();
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("reports a series answered without any representation as a failure", async () => {
+    renderDashboard(
+      dashboardFetch({
+        evolutionResponse: () =>
+          new Response(null, {
+            status: 204,
+            headers: { [REQUEST_ID_HEADER]: REQUEST_ID },
+          }),
+      }),
+    );
+
+    await waitForIncome("2500,00 €");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(dashboardCopy.trendErrorTitle);
+    expect(alert).toHaveTextContent(dashboardCopy.errorHint);
+  });
+
+  it("shows both breakdowns of the period next to the cards", async () => {
+    renderDashboard(dashboardFetch());
+    await waitForIncome("2500,00 €");
+
+    expect(
+      screen.getByRole("table", { name: dashboardCopy.categoryCaption }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("table", { name: dashboardCopy.tagCaption }),
+    ).toBeVisible();
+    expect(screen.getByText(dashboardCopy.tagOverlap)).toBeVisible();
   });
 });
