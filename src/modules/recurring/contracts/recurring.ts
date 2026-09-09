@@ -1,0 +1,64 @@
+/**
+ * Public recurrence representations of the HTTP API.
+ *
+ * A rule exposes its future template but never workspace or storage details.
+ */
+
+import type { RecurringRule } from "../domain/recurring-rule";
+import type { TransactionType } from "../../transactions/domain/transaction-type";
+
+/** Active monthly template as returned to the browser. */
+export interface RecurringRuleDto {
+  readonly id: string;
+  readonly sourceTransactionId: string | null;
+  readonly type: TransactionType;
+  readonly amountMinor: number;
+  readonly categoryId: string;
+  readonly concept: string | null;
+  readonly note: string | null;
+  readonly tagIds: readonly string[];
+  readonly monthlyDay: number;
+  readonly nextDueDate: string;
+  readonly templateVersion: number;
+}
+
+/** Active rules grouped for the Recurrentes tab. */
+export interface RecurringRulesListDto {
+  readonly expenses: readonly RecurringRuleDto[];
+  readonly incomes: readonly RecurringRuleDto[];
+}
+
+/**
+ * Result of an edit or a deactivation.
+ *
+ * A template change first materialises the dates that were already due with
+ * the previous template, so the response reports them: the browser has to be
+ * able to tell the owner which movements the change has just created.
+ */
+export interface RecurringRuleChangeDto {
+  readonly rule: RecurringRuleDto;
+  readonly generatedDueDates: readonly string[];
+}
+
+/** Dates a later edit or deactivation would materialise, read without writing. */
+export interface CatchUpPreviewDto {
+  readonly rule: RecurringRuleDto;
+  readonly pendingDueDates: readonly string[];
+}
+
+/** Maps a domain rule to the documented HTTP representation. */
+export function toRecurringRuleDto(rule: RecurringRule): RecurringRuleDto {
+  return {
+    id: rule.id,
+    sourceTransactionId: rule.sourceTransactionId,
+    type: rule.template.type,
+    amountMinor: rule.template.amountMinor,
+    categoryId: rule.template.categoryId,
+    concept: rule.template.concept,
+    note: rule.template.note,
+    tagIds: [...rule.template.tagIds],
+    monthlyDay: rule.monthlyDay,
+    nextDueDate: rule.nextDueDate,
+    templateVersion: rule.templateVersion,
+  };
+}

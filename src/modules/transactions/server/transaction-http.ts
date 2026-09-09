@@ -13,9 +13,15 @@ import "server-only";
 import type { z } from "zod";
 
 import { sqliteRecurringOccurrenceRepository } from "../../recurring/infrastructure/sqlite-recurring-occurrence-repository";
+import { sqliteRecurringRuleRepository } from "../../recurring/infrastructure/sqlite-recurring-rule-repository";
+import {
+  createRecurringLifecycle,
+  type ActivatedWithTransaction,
+} from "../../recurring/application/services/recurring-lifecycle";
 import { sqliteCategoryRepository } from "../../classification/infrastructure/sqlite-category-repository";
 import { sqliteTagRepository } from "../../classification/infrastructure/sqlite-tag-repository";
 import type { Clock } from "../../../shared/domain/clock";
+import type { SqliteConnection } from "../../../shared/server/database";
 import { domainError } from "../../../shared/domain/errors";
 import {
   accepted,
@@ -38,7 +44,6 @@ import { sqliteTransactionQuery } from "../infrastructure/sqlite-list-transactio
 import { sqliteTransactionRepository } from "../infrastructure/sqlite-transaction-repository";
 import type { Transaction, TransactionId } from "../domain/transaction";
 import {
-  toTransactionCursorPageDto,
   toTransactionDto,
   type TransactionCursorPageDto,
   type TransactionDto,
@@ -50,11 +55,13 @@ import {
   runDomainInTransaction,
   tagIdsFromQuery,
   transactionIdFrom,
+  transactionCreateBodySchema,
   transactionListQuerySchema,
   transactionWriteBodySchema,
 } from "./http";
 
 type TransactionListQuery = z.infer<typeof transactionListQuerySchema>;
+type TransactionCreateBody = z.infer<typeof transactionCreateBodySchema>;
 type TransactionWriteBody = z.infer<typeof transactionWriteBodySchema>;
 
 /** Collaborators of the transaction handlers. Clock and identifiers are test seams. */
@@ -85,6 +92,16 @@ function writeServices(deps: TransactionHttpDeps) {
       transactions: sqliteTransactionRepository,
       occurrences: sqliteRecurringOccurrenceRepository,
     }),
+    recurring: createRecurringLifecycle({
+      rules: sqliteRecurringRuleRepository,
+      occurrences: sqliteRecurringOccurrenceRepository,
+      transactions: sqliteTransactionRepository,
+      categories: sqliteCategoryRepository,
+      tags: sqliteTagRepository,
+      clock: deps.clock,
+      createId: deps.createId,
+      now: deps.now,
+    }),
   };
 }
 
@@ -98,6 +115,24 @@ function toWriteCommand(workspaceId: string, body: TransactionWriteBody) {
     concept: body.concept ?? null,
     note: body.note ?? null,
     tags: body.tagInputs,
+  };
+}
+
+function toTransactionDtoWithOccurrence(
+  connection: SqliteConnection,
+  transaction: Transaction,
+): TransactionDto {
+  const occurrence = connection.sqlite
+    .prepare(
+      "SELECT recurring_rule_id AS recurringRuleId, scheduled_for AS scheduledFor FROM recurring_occurrence WHERE transaction_id = ?",
+    )
+    .get(transaction.id) as
+    | { readonly recurringRuleId: string; readonly scheduledFor: string }
+    | undefined;
+
+  return {
+    ...toTransactionDto(transaction),
+    ...(occurrence === undefined ? {} : occurrence),
   };
 }
 
@@ -139,10 +174,12 @@ export function createListTransactionsHandler(
 
         return accepted({
           status: 200,
-          data: toTransactionCursorPageDto(
-            listed.value.items,
-            listed.value.nextCursor,
-          ),
+          data: {
+            items: listed.value.items.map((transaction) =>
+              toTransactionDtoWithOccurrence(context.connection, transaction),
+            ),
+            nextCursor: listed.value.nextCursor,
+          },
         });
       },
     },
@@ -154,16 +191,26 @@ export function createListTransactionsHandler(
 export function createCreateTransactionHandler(
   deps: TransactionHttpDeps = {},
 ): ApiHandler {
-  return createApiHandler<TransactionWriteBody, undefined, TransactionDto>(
+  return createApiHandler<TransactionCreateBody, undefined, TransactionDto>(
     {
-      bodySchema: transactionWriteBodySchema,
+      bodySchema: transactionCreateBodySchema,
       handle(context) {
         const created = fromDomain(
-          runDomainInTransaction(context.connection, (unit) =>
-            writeServices(deps).create.execute(
-              unit,
-              toWriteCommand(context.workspaceId, context.body),
-            ),
+          runDomainInTransaction<Transaction | ActivatedWithTransaction>(
+            context.connection,
+            (unit) =>
+              context.body.recurrence === undefined
+                ? writeServices(deps).create.execute(
+                    unit,
+                    toWriteCommand(context.workspaceId, context.body),
+                  )
+                : writeServices(deps).recurring.activateWithNewTransaction(
+                    unit,
+                    {
+                      ...toWriteCommand(context.workspaceId, context.body),
+                      monthlyDay: context.body.recurrence.monthlyDay,
+                    },
+                  ),
           ),
         );
 
@@ -171,7 +218,19 @@ export function createCreateTransactionHandler(
           return created;
         }
 
-        return accepted({ status: 201, data: toTransactionDto(created.value) });
+        return accepted({
+          status: 201,
+          data:
+            "transaction" in created.value
+              ? toTransactionDto(created.value.transaction, {
+                  ruleId: created.value.rule.id,
+                  nextDueDate: created.value.rule.nextDueDate,
+                })
+              : toTransactionDtoWithOccurrence(
+                  context.connection,
+                  created.value,
+                ),
+        });
       },
     },
     deps,
@@ -192,6 +251,7 @@ export function createGetTransactionHandler(
         }
 
         return mapFound(
+          context.connection,
           fromTransaction(
             sqliteTransactionRepository.findTransactionById(
               autocommit(context.connection),
@@ -231,7 +291,7 @@ export function createUpdateTransactionHandler(
           ),
         );
 
-        return mapItem(updated);
+        return mapItem(context.connection, updated);
       },
     },
     deps,
@@ -272,16 +332,21 @@ export function createDeleteTransactionHandler(
 }
 
 function mapItem(
+  connection: SqliteConnection,
   result: ApiResult<Transaction>,
 ): ApiResult<ApiSuccess<TransactionDto>> {
   if (!result.ok) {
     return result;
   }
 
-  return accepted({ status: 200, data: toTransactionDto(result.value) });
+  return accepted({
+    status: 200,
+    data: toTransactionDtoWithOccurrence(connection, result.value),
+  });
 }
 
 function mapFound(
+  connection: SqliteConnection,
   result: ApiResult<Transaction | null>,
 ): ApiResult<ApiSuccess<TransactionDto>> {
   if (!result.ok) {
@@ -292,5 +357,8 @@ function mapFound(
     return refused(toApiFailure([domainError("id", "notFound")]));
   }
 
-  return accepted({ status: 200, data: toTransactionDto(result.value) });
+  return accepted({
+    status: 200,
+    data: toTransactionDtoWithOccurrence(connection, result.value),
+  });
 }

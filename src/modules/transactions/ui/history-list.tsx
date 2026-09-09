@@ -401,7 +401,10 @@ function HistoryDesktopRow({
       <th className="text-body-sm text-text px-3 py-3 font-medium" scope="row">
         <span className="flex min-w-0 items-center gap-3">
           <CategoryIcon categoryId={transaction.categoryId} />
-          <span className="min-w-0 break-words">{primary}</span>
+          <span className="min-w-0 break-words">
+            {primary}
+            <GeneratedRecurringIndicator transaction={transaction} />
+          </span>
         </span>
       </th>
       <td className="text-body-sm text-text-muted px-3 py-3">{category}</td>
@@ -446,6 +449,7 @@ function HistoryMobileRow({
           <div className="min-w-0">
             <p className="text-body text-text font-medium break-words">
               {primary}
+              <GeneratedRecurringIndicator transaction={transaction} />
             </p>
             <p className="text-body-sm text-text-muted">{category}</p>
           </div>
@@ -479,6 +483,28 @@ interface HistoryRowViewProps {
 
 type HistorySnapshotCategories = Parameters<typeof historyCategoryLabel>[1];
 type HistorySnapshotTags = Parameters<typeof historyTagNames>[1];
+
+function GeneratedRecurringIndicator({
+  transaction,
+}: {
+  readonly transaction: TransactionDto;
+}) {
+  if (
+    transaction.recurringRuleId === undefined ||
+    transaction.recurringRuleId === null
+  ) {
+    return null;
+  }
+
+  return (
+    <span
+      aria-label="Generado por recurrencia"
+      className="text-caption text-text-muted ml-2"
+    >
+      ↻
+    </span>
+  );
+}
 
 function TagList({ names }: { readonly names: readonly string[] }) {
   if (names.length === 0) {

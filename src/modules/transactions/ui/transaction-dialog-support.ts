@@ -83,6 +83,8 @@ export function transactionToFormValues(
     concept: transaction.concept ?? "",
     note: transaction.note ?? "",
     tagSelections,
+    recurrenceEnabled: false,
+    monthlyDay: Number(transaction.date.slice(-2)),
   };
 }
 

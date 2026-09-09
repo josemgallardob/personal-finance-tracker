@@ -28,10 +28,7 @@ export const historyCopy = {
   income: "Ingreso",
   loading: "Cargando movimientos…",
   noTags: "Sin etiquetas",
-  recurringDescription:
-    "Las plantillas mensuales aparecerán en esta pestaña cuando la recurrencia esté lista.",
   recurringTab: "Recurrentes",
-  recurringTitle: "Recurrencias aún no disponibles",
   retry: "Reintentar",
   searchLabel: "Buscar",
   searchPlaceholder: "Concepto o nota",

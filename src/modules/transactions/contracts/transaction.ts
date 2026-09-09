@@ -21,6 +21,15 @@ export interface TransactionDto {
   readonly concept: string | null;
   readonly note: string | null;
   readonly tagIds: readonly string[];
+  /** Rule that generated this movement, when it was not entered manually. */
+  readonly recurringRuleId?: string | null;
+  /** Scheduled civil day of a generated movement. */
+  readonly scheduledFor?: string | null;
+  /** Present only when this POST atomically created its monthly rule. */
+  readonly recurrence?: {
+    readonly ruleId: string;
+    readonly nextDueDate: string;
+  };
 }
 
 /**
@@ -36,7 +45,10 @@ export interface TransactionCursorPageDto {
 }
 
 /** Maps a domain movement to the documented HTTP representation. */
-export function toTransactionDto(transaction: Transaction): TransactionDto {
+export function toTransactionDto(
+  transaction: Transaction,
+  recurrence?: TransactionDto["recurrence"],
+): TransactionDto {
   return {
     id: transaction.id,
     type: transaction.type,
@@ -46,6 +58,7 @@ export function toTransactionDto(transaction: Transaction): TransactionDto {
     concept: transaction.concept,
     note: transaction.note,
     tagIds: [...transaction.tagIds],
+    ...(recurrence === undefined ? {} : { recurrence }),
   };
 }
 
@@ -55,7 +68,7 @@ export function toTransactionCursorPageDto(
   nextCursor: string | null,
 ): TransactionCursorPageDto {
   return {
-    items: items.map(toTransactionDto),
+    items: items.map((item) => toTransactionDto(item)),
     nextCursor,
   };
 }

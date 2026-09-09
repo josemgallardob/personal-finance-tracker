@@ -32,6 +32,7 @@ import {
 
 export {
   tagInputSchema,
+  transactionCreateBodySchema,
   transactionListQuerySchema,
   transactionWriteBodySchema,
 } from "../contracts/http";

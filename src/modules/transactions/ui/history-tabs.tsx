@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { cx } from "../../../shared/ui/class-names";
-import { EmptyState } from "../../../shared/ui/empty-state";
 import {
   historyPageHref,
   parseHistoryQueryState,
@@ -79,15 +78,5 @@ function HistoryTabLink({
     >
       {label}
     </Link>
-  );
-}
-
-/** Placeholder of the Recurrentes tab until that area lands. */
-export function RecurringHistoryPlaceholder() {
-  return (
-    <EmptyState
-      description={historyCopy.recurringDescription}
-      title={historyCopy.recurringTitle}
-    />
   );
 }

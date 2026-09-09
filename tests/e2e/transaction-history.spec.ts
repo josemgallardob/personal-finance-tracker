@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { transactionMaintenanceCopy } from "../../src/modules/transactions/ui/transaction-dialog-support";
 import { historyCopy } from "../../src/modules/transactions/ui/history-copy";
+import { recurringCopy } from "../../src/modules/recurring/ui/recurring-copy";
 import {
   expenseCategory,
   fillRequiredFields,
@@ -36,9 +37,7 @@ async function createExpenseFromShell(
 }
 
 test.describe("movement history", () => {
-  test("keeps Recurrentes as a placeholder next to the Todos history", async ({
-    page,
-  }) => {
+  test("opens Recurrentes next to the Todos history", async ({ page }) => {
     await goToHistory(page);
     await expect(
       page.getByRole("tab", { name: historyCopy.allTab }),
@@ -46,7 +45,7 @@ test.describe("movement history", () => {
 
     await page.getByRole("tab", { name: historyCopy.recurringTab }).click();
     await expect(
-      page.getByRole("region", { name: historyCopy.recurringTitle }),
+      page.getByRole("region", { name: recurringCopy.emptyTitle }),
     ).toBeVisible();
     await expect(page.getByRole("table")).toHaveCount(0);
   });

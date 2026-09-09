@@ -19,6 +19,11 @@ export const tagInputSchema = z.union([
   z.strictObject({ name: z.string() }),
 ]);
 
+/** Optional monthly rule created atomically with a new movement. */
+export const createTransactionRecurrenceSchema = z.strictObject({
+  monthlyDay: z.number(),
+});
+
 /** Body of POST /api/transactions and PUT /api/transactions/[id]. */
 export const transactionWriteBodySchema = z.strictObject({
   type: transactionTypeSchema,
@@ -28,6 +33,11 @@ export const transactionWriteBodySchema = z.strictObject({
   concept: z.union([z.string(), z.null()]).optional(),
   note: z.union([z.string(), z.null()]).optional(),
   tagInputs: z.array(tagInputSchema).optional(),
+});
+
+/** Body of POST /api/transactions, with an optional atomic monthly rule. */
+export const transactionCreateBodySchema = transactionWriteBodySchema.extend({
+  recurrence: createTransactionRecurrenceSchema.optional(),
 });
 
 /**
@@ -58,6 +68,11 @@ export const transactionDtoSchema = z.strictObject({
   concept: z.string().nullable(),
   note: z.string().nullable(),
   tagIds: z.array(z.string()),
+  recurringRuleId: z.string().nullable().optional(),
+  scheduledFor: z.string().nullable().optional(),
+  recurrence: z
+    .strictObject({ ruleId: z.string(), nextDueDate: z.string() })
+    .optional(),
 });
 
 /**
@@ -73,6 +88,7 @@ export const transactionCursorPageDtoSchema = z.strictObject({
 
 export type TagInput = z.infer<typeof tagInputSchema>;
 export type TransactionWriteBody = z.infer<typeof transactionWriteBodySchema>;
+export type TransactionCreateBody = z.infer<typeof transactionCreateBodySchema>;
 export type TransactionListQueryDto = z.infer<
   typeof transactionListQuerySchema
 >;
