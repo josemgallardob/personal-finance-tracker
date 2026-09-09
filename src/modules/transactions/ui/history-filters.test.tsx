@@ -174,3 +174,53 @@ describe("HistoryFilters", () => {
     });
   });
 });
+
+describe("HistoryFilters and the computed untagged group", () => {
+  it("summarises the group as a chip the owner can remove", async () => {
+    const onChange = vi.fn();
+    render(
+      <HistoryFilters
+        categories={categories}
+        onChange={onChange}
+        tags={tags}
+        value={{ ...emptyHistoryQueryState, untagged: true }}
+      />,
+    );
+
+    const chips = screen.getByRole("list", { name: historyCopy.chipsLabel });
+    expect(within(chips).getByText(historyCopy.noTags)).toBeVisible();
+
+    await userEvent.click(
+      within(chips).getByRole("button", {
+        name: historyCopy.removeFilter(historyCopy.noTags),
+      }),
+    );
+
+    expect(onChange).toHaveBeenCalledWith(emptyHistoryQueryState);
+  });
+
+  it("leaves the group as soon as the owner filters by a real tag", async () => {
+    const onChange = vi.fn();
+    render(
+      <HistoryFilters
+        categories={categories}
+        onChange={onChange}
+        tags={tags}
+        value={{ ...emptyHistoryQueryState, untagged: true }}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: `${historyCopy.tagsFilterLabel} · 0`,
+      }),
+    );
+    await userEvent.click(screen.getByRole("checkbox", { name: "Viajes" }));
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...emptyHistoryQueryState,
+      tagIds: ["tag-trips"],
+      untagged: false,
+    });
+  });
+});

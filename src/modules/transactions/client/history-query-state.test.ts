@@ -37,6 +37,7 @@ describe("parseHistoryQueryState and writeHistoryQueryState", () => {
       type: "expense",
       categoryId: "cat-food",
       tagIds: ["tag-trips", "tag-trips", "tag-home"],
+      untagged: false,
     });
     const url = new URL(href, "http://localhost");
 
@@ -53,6 +54,7 @@ describe("parseHistoryQueryState and writeHistoryQueryState", () => {
       type: "expense",
       categoryId: "cat-food",
       tagIds: ["tag-trips", "tag-home"],
+      untagged: false,
     });
   });
 
@@ -67,6 +69,7 @@ describe("parseHistoryQueryState and writeHistoryQueryState", () => {
       type: null,
       categoryId: null,
       tagIds: ["tag-1"],
+      untagged: false,
     });
   });
 
@@ -187,5 +190,85 @@ describe("withoutHistoryChip", () => {
       withoutHistoryChip(state, { kind: "tag", label: "x", tagId: "t1" })
         .tagIds,
     ).toEqual(["t2"]);
+  });
+});
+
+describe("the computed untagged group in the history URL", () => {
+  it("writes and reads the group as its own mutually exclusive filter", () => {
+    const href = historyPageHref("all", {
+      ...emptyHistoryQueryState,
+      dateFrom: civilDate("2026-09-01"),
+      dateTo: civilDate("2026-09-30"),
+      type: "expense",
+      untagged: true,
+    });
+
+    expect(href).toBe(
+      "/transactions?dateFrom=2026-09-01&dateTo=2026-09-30&type=expense&untagged=true&tab=all",
+    );
+
+    const url = new URL(href, "https://finanzas.local");
+    expect(parseHistoryQueryState(url.searchParams)).toMatchObject({
+      untagged: true,
+      tagIds: [],
+      type: "expense",
+    });
+  });
+
+  it("lets an explicit tag win over a group that cannot travel with it", () => {
+    const params = new URLSearchParams("untagged=true&tagId=tag-trips");
+
+    expect(parseHistoryQueryState(params)).toMatchObject({
+      untagged: false,
+      tagIds: ["tag-trips"],
+    });
+
+    const written = writeHistoryQueryState(new URLSearchParams(), {
+      ...emptyHistoryQueryState,
+      tagIds: ["tag-trips"],
+      untagged: true,
+    });
+    expect(written.toString()).toBe("tagId=tag-trips");
+  });
+
+  it("ignores any value of the group other than the documented one", () => {
+    expect(
+      parseHistoryQueryState(new URLSearchParams("untagged=1")).untagged,
+    ).toBe(false);
+    expect(
+      parseHistoryQueryState(new URLSearchParams("untagged=false")).untagged,
+    ).toBe(false);
+  });
+
+  it("asks the list adapter for the group, and never for both conditions", () => {
+    expect(
+      toTransactionListQuery({ ...emptyHistoryQueryState, untagged: true }),
+    ).toMatchObject({ untagged: true, tagId: undefined });
+    expect(
+      toTransactionListQuery({
+        ...emptyHistoryQueryState,
+        tagIds: ["tag-trips"],
+        untagged: true,
+      }),
+    ).toMatchObject({ untagged: undefined, tagId: "tag-trips" });
+  });
+
+  it("gives the group its own request identity and its own emptiness", () => {
+    const untagged = { ...emptyHistoryQueryState, untagged: true };
+
+    expect(historyQueryRequestKey(untagged)).not.toBe(
+      historyQueryRequestKey(emptyHistoryQueryState),
+    );
+    expect(isHistoryQueryEmpty(untagged)).toBe(false);
+    expect(historyQueryEquals(untagged, emptyHistoryQueryState)).toBe(false);
+  });
+
+  it("removes the group from the applied filters through its chip", () => {
+    expect(
+      withoutHistoryChip(
+        { ...emptyHistoryQueryState, untagged: true },
+        { kind: "untagged", label: "Sin etiquetas" },
+      ),
+    ).toEqual(emptyHistoryQueryState);
   });
 });

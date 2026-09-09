@@ -177,7 +177,14 @@ export function HistoryFilters({
           <MultiSelect
             archivedBehavior="selectable"
             onChange={(tagIds) => {
-              onChange({ ...value, tagIds: uniqueTagIds(tagIds) });
+              const unique = uniqueTagIds(tagIds);
+              // The server refuses both tag conditions at once, so choosing a
+              // tag leaves the computed untagged group.
+              onChange({
+                ...value,
+                tagIds: unique,
+                untagged: unique.length === 0 && value.untagged,
+              });
             }}
             options={tags.map((tag) => ({
               archived: tag.isArchived,
@@ -281,6 +288,10 @@ export function historyChips(
       tagId,
       label: tags.find((tag) => tag.id === tagId)?.name ?? tagId,
     });
+  }
+
+  if (state.untagged) {
+    chips.push({ kind: "untagged", label: historyCopy.noTags });
   }
 
   return chips;

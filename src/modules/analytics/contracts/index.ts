@@ -10,4 +10,5 @@
 export * from "./averages";
 export * from "./drill-down";
 export * from "./evolution";
+export * from "./http";
 export * from "./summary";

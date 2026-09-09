@@ -3,7 +3,8 @@
  *
  * The browser history stores the same dimensions the list adapter sends:
  * free-text `q`, inclusive `dateFrom`/`dateTo` LocalDate bounds, a single type,
- * a single category and repeated `tagId` values with OR semantics. Unknown keys
+ * a single category, repeated `tagId` values with OR semantics and the
+ * computed `untagged` group, which is mutually exclusive with them. Unknown keys
  * such as `tab` stay untouched so switching filters cannot drop the active
  * section. Duplicate tag identifiers collapse in first-seen order; empty text
  * is omitted rather than stored as `q=`. Invalid civil dates in the URL are
@@ -29,7 +30,11 @@ const FILTER_KEYS = [
   "type",
   "categoryId",
   "tagId",
+  "untagged",
 ] as const;
+
+/** Value the untagged filter is written with; anything else is not the group. */
+const UNTAGGED_VALUE = "true";
 
 /** Applied Todos filters, already unique and free of empty values. */
 export interface HistoryQueryState {
@@ -39,6 +44,14 @@ export interface HistoryQueryState {
   readonly type: TransactionType | null;
   readonly categoryId: string | null;
   readonly tagIds: readonly string[];
+  /**
+   * Movements with no tag at all.
+   *
+   * The server refuses a request that asks for the untagged group and for a
+   * tag at the same time, so the two can never travel together: setting this
+   * drops the tag filter, and choosing a tag clears this.
+   */
+  readonly untagged: boolean;
 }
 
 export const emptyHistoryQueryState: HistoryQueryState = {
@@ -48,6 +61,7 @@ export const emptyHistoryQueryState: HistoryQueryState = {
   type: null,
   categoryId: null,
   tagIds: [],
+  untagged: false,
 };
 
 /** True when no list filter is active. */
@@ -58,7 +72,8 @@ export function isHistoryQueryEmpty(state: HistoryQueryState): boolean {
     state.dateTo === null &&
     state.type === null &&
     state.categoryId === null &&
-    state.tagIds.length === 0
+    state.tagIds.length === 0 &&
+    !state.untagged
   );
 }
 
@@ -72,6 +87,7 @@ export function historyQueryEquals(
     left.dateTo === right.dateTo &&
     left.type === right.type &&
     left.categoryId === right.categoryId &&
+    left.untagged === right.untagged &&
     left.tagIds.length === right.tagIds.length &&
     left.tagIds.every((tagId, index) => tagId === right.tagIds[index])
   );
@@ -121,6 +137,13 @@ export function parseHistoryQueryState(
   const typeValue = readSingle(params, "type");
   const type =
     typeValue !== null && isTransactionType(typeValue) ? typeValue : null;
+  const tagIds = uniqueTagIds(
+    params.getAll("tagId").map((tagId) => tagId.trim()),
+  );
+  // The two tag filters exclude each other, and a URL that carries both would
+  // be refused by the server: the explicit tags win over the computed group.
+  const untagged =
+    tagIds.length === 0 && readSingle(params, "untagged") === UNTAGGED_VALUE;
 
   return {
     q,
@@ -128,7 +151,8 @@ export function parseHistoryQueryState(
     dateTo: readLocalDate(params, "dateTo"),
     type,
     categoryId: readSingle(params, "categoryId"),
-    tagIds: uniqueTagIds(params.getAll("tagId").map((tagId) => tagId.trim())),
+    tagIds,
+    untagged,
   };
 }
 
@@ -166,8 +190,14 @@ export function writeHistoryQueryState(
     next.set("categoryId", state.categoryId);
   }
 
-  for (const tagId of uniqueTagIds(state.tagIds)) {
+  const tagIds = uniqueTagIds(state.tagIds);
+
+  for (const tagId of tagIds) {
     next.append("tagId", tagId);
+  }
+
+  if (state.untagged && tagIds.length === 0) {
+    next.set("untagged", UNTAGGED_VALUE);
   }
 
   return next;
@@ -207,6 +237,7 @@ export function toTransactionListQuery(
         : tagIds.length === 1
           ? tagIds[0]
           : tagIds,
+    untagged: tagIds.length === 0 && state.untagged ? true : undefined,
   };
 }
 
@@ -223,6 +254,7 @@ export function historyQueryRequestKey(state: HistoryQueryState): string {
     type: query.type,
     categoryId: query.categoryId,
     tagId: query.tagId,
+    untagged: query.untagged,
   })}`;
 }
 
@@ -246,6 +278,8 @@ export function withoutHistoryChip(
         ...state,
         tagIds: state.tagIds.filter((tagId) => tagId !== chip.tagId),
       };
+    case "untagged":
+      return { ...state, untagged: false };
   }
 }
 
@@ -256,4 +290,5 @@ export type HistoryChip =
   | { readonly kind: "dateTo"; readonly label: string }
   | { readonly kind: "type"; readonly label: string }
   | { readonly kind: "category"; readonly label: string }
-  | { readonly kind: "tag"; readonly label: string; readonly tagId: string };
+  | { readonly kind: "tag"; readonly label: string; readonly tagId: string }
+  | { readonly kind: "untagged"; readonly label: string };
