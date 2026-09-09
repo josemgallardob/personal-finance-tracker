@@ -47,7 +47,7 @@ network-specific acceptance criterion as verified.
 Before this task, SQLite selected `transaction_workspace_date_idx` for the
 history ordering but reported `USE TEMP B-TREE FOR LAST 2 TERMS OF ORDER BY`;
 the index covered only `(workspace_id, date)` while the stable cursor order also
-uses `created_at` and `id`. Migration `0004_lethal_toro.sql` adds
+uses `created_at` and `id`. Migration `0004_add_pagination_index.sql` adds
 `transaction_workspace_pagination_idx` on
 `(workspace_id, date, created_at, id)`. The recorded benchmark plan is
 `SEARCH transaction USING COVERING INDEX transaction_workspace_pagination_idx
