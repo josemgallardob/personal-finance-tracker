@@ -7,9 +7,10 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 127.0.0.1",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 127.0.0.1",
+    "start:server": "tsx --conditions react-server scripts/start-server.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"db/**/*.ts\" \"scripts/**/*.ts\" \"*.{json,ts,mjs}\" \".github/**/*.yml\" \".secretlintrc.json\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"db/**/*.ts\" \"scripts/**/*.ts\" \"*.{json,ts,mjs}\" \".github/**/*.yml\" \".secretlintrc.json\"",
     "db:generate": "drizzle-kit generate",

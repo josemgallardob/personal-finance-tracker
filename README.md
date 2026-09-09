@@ -51,6 +51,45 @@ Create the first functional prototype using the documented visual conventions
 and complete the remaining decisions from phase 0 of the
 [implementation plan](docs/06-plan-implementacion.md).
 
+## Private deployment
+
+The private deployment runs a single application container with SQLite on local
+disk. Configuration and credentials come from a `.env` file on the host, which
+is never committed and never copied into an image layer.
+
+```bash
+cp .env.example .env   # then set APP_URL and the host port
+docker compose up -d --build
+```
+
+What the templates guarantee:
+
+- one unprivileged runtime user (`node`), no capabilities and no privilege
+  escalation;
+- one durable volume for the personal database and a separate one for the
+  isolated demonstration database, so recreating the container keeps both;
+- the port is published on `127.0.0.1` only, so remote access depends on the
+  private VPN or a local reverse proxy, never on this file;
+- the image build never opens SQLite; migrations run at container start.
+
+Every start runs the same ordered sequence before the server accepts requests:
+migrate and bootstrap the personal database, migrate the demonstration
+database, catch up the missed monthly due dates, then serve. A failed step
+exits non-zero and the container never serves a half-migrated database.
+`docker compose down` stops the container and keeps both volumes;
+`docker compose up -d` recreates it with the same data.
+
+The same sequence runs locally against the built application:
+
+```bash
+npm run build
+npm run start:server
+```
+
+Remote access over the private VPN, the daily scheduler and encrypted backups
+are operated outside this repository and are documented with the operations
+tasks that own them.
+
 ## Local development
 
 The project requires Node.js 24 and npm.
