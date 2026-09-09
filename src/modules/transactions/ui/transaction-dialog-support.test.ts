@@ -35,6 +35,8 @@ describe("transaction dialog support", () => {
       categoryId: "cat-food",
       concept: "Supermercado",
       note: "Semanal",
+      recurrenceEnabled: false,
+      monthlyDay: 1,
       tagSelections: [{ kind: "existing", tagId: "tag-trips", name: "Viajes" }],
     });
     expect(
@@ -46,6 +48,8 @@ describe("transaction dialog support", () => {
       categoryId: "cat-food",
       concept: "",
       note: "",
+      recurrenceEnabled: false,
+      monthlyDay: 1,
       tagSelections: [{ kind: "existing", tagId: "tag-trips", name: "Viajes" }],
     });
   });

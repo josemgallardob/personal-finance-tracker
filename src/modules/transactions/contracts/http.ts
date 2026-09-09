@@ -68,6 +68,8 @@ export const transactionDtoSchema = z.strictObject({
   concept: z.string().nullable(),
   note: z.string().nullable(),
   tagIds: z.array(z.string()),
+  recurringRuleId: z.string().nullable().optional(),
+  scheduledFor: z.string().nullable().optional(),
   recurrence: z
     .strictObject({ ruleId: z.string(), nextDueDate: z.string() })
     .optional(),

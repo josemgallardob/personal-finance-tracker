@@ -24,6 +24,7 @@ import type {
 import {
   transactionCursorPageDtoSchema,
   transactionDtoSchema,
+  type TransactionCreateBody,
   type TransactionListQuery,
   type TransactionWriteBody,
 } from "../contracts/http";
@@ -35,7 +36,7 @@ export interface TransactionsApi {
     options?: ApiRequestOptions,
   ): Promise<ApiClientResult<TransactionCursorPageDto>>;
   createTransaction(
-    body: TransactionWriteBody,
+    body: TransactionCreateBody,
     options?: ApiRequestOptions,
   ): Promise<ApiClientResult<TransactionDto>>;
   getTransaction(

@@ -31,7 +31,7 @@ import {
   normalizeFreeText,
   normalizeName,
 } from "../../../shared/domain/text";
-import type { TagInput, TransactionWriteBody } from "../contracts/http";
+import type { TagInput, TransactionCreateBody } from "../contracts/http";
 import {
   MAX_CONCEPT_LENGTH,
   MAX_NOTE_LENGTH,
@@ -87,6 +87,8 @@ export interface TransactionFormValues {
   readonly concept: string;
   readonly note: string;
   readonly tagSelections: TagSelection[];
+  readonly recurrenceEnabled: boolean;
+  readonly monthlyDay: number;
 }
 
 export interface TransactionFormContext {
@@ -132,6 +134,8 @@ export function defaultTransactionFormValues(
     concept: initial?.concept ?? "",
     note: initial?.note ?? "",
     tagSelections: initial?.tagSelections ? [...initial.tagSelections] : [],
+    recurrenceEnabled: initial?.recurrenceEnabled ?? false,
+    monthlyDay: initial?.monthlyDay ?? Number(today.slice(-2)),
   };
 }
 
@@ -192,7 +196,7 @@ function optionalWriteText(
 
 export function toTransactionWriteBody(
   values: TransactionFormValues,
-): TransactionWriteBody {
+): TransactionCreateBody {
   const amount = parseTransactionAmountText(values.amountText);
 
   if (!amount.ok) {
@@ -209,6 +213,9 @@ export function toTransactionWriteBody(
     concept: optionalWriteText(values.concept, false),
     note: optionalWriteText(values.note, true),
     tagInputs,
+    ...(values.recurrenceEnabled
+      ? { recurrence: { monthlyDay: values.monthlyDay } }
+      : {}),
   };
 }
 
@@ -239,6 +246,8 @@ export function createTransactionFormSchema(context: TransactionFormContext) {
       concept: z.string(),
       note: z.string(),
       tagSelections: z.array(tagSelectionSchema),
+      recurrenceEnabled: z.boolean(),
+      monthlyDay: z.number(),
     })
     .superRefine((values, ctx) => {
       if (values.amountText.trim() === "") {
@@ -337,6 +346,19 @@ export function createTransactionFormSchema(context: TransactionFormContext) {
           code: "custom",
           path: ["tagSelections"],
           message: transactionFormCopy.tagsTooMany,
+        });
+      }
+
+      if (
+        values.recurrenceEnabled &&
+        (!Number.isInteger(values.monthlyDay) ||
+          values.monthlyDay < 1 ||
+          values.monthlyDay > 31)
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["monthlyDay"],
+          message: "Elige un día entre 1 y 31.",
         });
       }
 

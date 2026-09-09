@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { createClassificationApi } from "../../classification/client/classification-api";
 import type { CategoryDto } from "../../classification/contracts/category";
 import type { TagDto } from "../../classification/contracts/tag";
+import { createRecurringApi } from "../../recurring/client/recurring-api";
 import { createPreferencesApi } from "../../preferences/client/preferences-api";
 import {
   createApiClient,
@@ -18,7 +19,7 @@ import { DialogShell } from "../../../shared/ui/dialog";
 import { EmptyState } from "../../../shared/ui/empty-state";
 import { LoadingState } from "../../../shared/ui/loading-state";
 import { createTransactionsApi } from "../client/transactions-api";
-import type { TransactionWriteBody } from "../contracts/http";
+import type { TransactionCreateBody } from "../contracts/http";
 import { TransactionForm } from "./transaction-form";
 import {
   defaultTransactionFormValues,
@@ -59,7 +60,7 @@ function failureMessage(failure: ApiClientFailure): string {
   return createTransactionDialogCopy.saveError;
 }
 
-function successMessage(type: TransactionWriteBody["type"]): string {
+function successMessage(type: TransactionCreateBody["type"]): string {
   return type === "income"
     ? createTransactionDialogCopy.successIncome
     : createTransactionDialogCopy.successExpense;
@@ -81,6 +82,10 @@ export function CreateTransactionDialog({
   );
   const transactionsApi = useMemo(
     () => createTransactionsApi(apiClient),
+    [apiClient],
+  );
+  const recurringApi = useMemo(
+    () => createRecurringApi(apiClient),
     [apiClient],
   );
   const { announceSuccessfulMutation } = useFinancialDataRevision();
@@ -163,7 +168,7 @@ export function CreateTransactionDialog({
   }
 
   async function save(
-    body: TransactionWriteBody,
+    body: TransactionCreateBody,
     addAnother: boolean,
   ): Promise<void> {
     if (pendingRef.current) {
@@ -251,6 +256,7 @@ export function CreateTransactionDialog({
             categories={catalog.data.categories}
             initialValues={defaultTransactionFormValues(today, initialValues)}
             pending={pending}
+            recurringApi={recurringApi}
             tags={catalog.data.tags}
             today={today}
             onCancel={() => {

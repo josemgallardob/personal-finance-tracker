@@ -7,12 +7,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { CategoryDto } from "../../classification/contracts/category";
 import type { TagDto } from "../../classification/contracts/tag";
 import { TagPicker } from "../../classification/ui/tag-picker";
+import type { RecurringApi } from "../../recurring/client/recurring-api";
+import { RepeatMonthlyFields } from "../../recurring/ui/repeat-monthly-fields";
 import { ErrorSummary, type FormError } from "../../../shared/ui/error-summary";
 import { Button } from "../../../shared/ui/button";
 import { Field } from "../../../shared/ui/field";
 import { Input } from "../../../shared/ui/input";
 import { cx } from "../../../shared/ui/class-names";
-import type { TransactionWriteBody } from "../contracts/http";
+import type { TransactionCreateBody } from "../contracts/http";
 import type { TransactionType } from "../domain/transaction-type";
 import {
   compatibleCategories,
@@ -28,13 +30,14 @@ export interface TransactionFormProps {
   readonly categories: readonly CategoryDto[];
   readonly initialValues?: Partial<TransactionFormValues>;
   readonly onCancel?: () => void;
-  readonly onSubmit: (body: TransactionWriteBody) => void | Promise<void>;
+  readonly onSubmit: (body: TransactionCreateBody) => void | Promise<void>;
   readonly onSubmitAndAddAnother?: (
-    body: TransactionWriteBody,
+    body: TransactionCreateBody,
   ) => void | Promise<void>;
   readonly pending?: boolean;
   readonly retainedCategoryId?: string;
   readonly retainedTagIds?: readonly string[];
+  readonly recurringApi?: RecurringApi;
   readonly submitLabel?: string;
   readonly tags: readonly TagDto[];
   readonly today: string;
@@ -54,6 +57,7 @@ function collectFormErrors(
     ["concept", "transaction-concept"],
     ["note", "transaction-note"],
     ["tagSelections", "transaction-tags"],
+    ["monthlyDay", "recurrence-monthly-day"],
   ];
 
   for (const [name, fieldId] of fields) {
@@ -75,6 +79,7 @@ export function TransactionForm({
   pending = false,
   retainedCategoryId,
   retainedTagIds,
+  recurringApi,
   submitLabel,
   tags,
   today,
@@ -295,6 +300,28 @@ export function TransactionForm({
           />
         )}
       />
+      {recurringApi ? (
+        <Controller
+          control={control}
+          name="recurrenceEnabled"
+          render={({ field: enabledField }) => (
+            <Controller
+              control={control}
+              name="monthlyDay"
+              render={({ field: dayField }) => (
+                <RepeatMonthlyFields
+                  api={recurringApi}
+                  disabled={pending}
+                  enabled={enabledField.value}
+                  monthlyDay={dayField.value}
+                  onEnabledChange={enabledField.onChange}
+                  onMonthlyDayChange={dayField.onChange}
+                />
+              )}
+            />
+          )}
+        />
+      ) : null}
       <div className="flex w-full max-w-full flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         {onCancel ? (
           <Button

@@ -13,6 +13,7 @@ import { DialogShell } from "../../../shared/ui/dialog";
 import { EmptyState } from "../../../shared/ui/empty-state";
 import { LoadingState } from "../../../shared/ui/loading-state";
 import { createTransactionsApi } from "../client/transactions-api";
+import { createRecurringApi } from "../../recurring/client/recurring-api";
 import type { TransactionWriteBody } from "../contracts/http";
 import { TransactionForm } from "./transaction-form";
 import {
@@ -46,10 +47,15 @@ export function TransactionMutationDialog({
     () => createTransactionsApi(apiClient),
     [apiClient],
   );
+  const recurringApi = useMemo(
+    () => createRecurringApi(apiClient),
+    [apiClient],
+  );
   const { announceSuccessfulMutation } = useFinancialDataRevision();
   const pendingRef = useRef(false);
   const [pending, setPending] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
   const editor = useResource({
     enabled: open,
     requestKey: `transaction-${mode}:${transactionId ?? ""}`,
@@ -114,6 +120,26 @@ export function TransactionMutationDialog({
     announceSuccessfulMutation();
     onCompleted?.();
     resetDialogState();
+    onOpenChange(false);
+  }
+
+  async function activateExisting(): Promise<void> {
+    if (transactionId === null || !editor.data || activating) return;
+    setActivating(true);
+    setSaveError(null);
+    const result = await recurringApi.activateRule({
+      transactionId,
+      monthlyDay: Number(editor.data.transaction.date.slice(-2)),
+    });
+    setActivating(false);
+    if (!result.ok) {
+      setSaveError(
+        apiFailureMessage(result, transactionMaintenanceCopy.saveError),
+      );
+      return;
+    }
+    announceSuccessfulMutation();
+    onCompleted?.();
     onOpenChange(false);
   }
 
@@ -193,6 +219,17 @@ export function TransactionMutationDialog({
             }}
             onSubmit={save}
           />
+          {mode === "edit" ? (
+            <Button
+              disabled={pending || activating}
+              pending={activating}
+              type="button"
+              variant="secondary"
+              onClick={activateExisting}
+            >
+              Repetir cada mes
+            </Button>
+          ) : null}
         </div>
       )}
     </DialogShell>

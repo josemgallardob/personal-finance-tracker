@@ -21,6 +21,10 @@ export interface TransactionDto {
   readonly concept: string | null;
   readonly note: string | null;
   readonly tagIds: readonly string[];
+  /** Rule that generated this movement, when it was not entered manually. */
+  readonly recurringRuleId?: string | null;
+  /** Scheduled civil day of a generated movement. */
+  readonly scheduledFor?: string | null;
   /** Present only when this POST atomically created its monthly rule. */
   readonly recurrence?: {
     readonly ruleId: string;
