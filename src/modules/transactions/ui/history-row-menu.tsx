@@ -64,6 +64,7 @@ export function HistoryRowMenu({
 
   function choose(action: HistoryRowAction) {
     onOpenChange(false);
+    rootRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
     onAction(action);
   }
 

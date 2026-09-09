@@ -234,7 +234,9 @@ export function TagPicker({
         <div className="flex w-full max-w-full flex-col gap-2 sm:flex-row">
           <Input
             aria-autocomplete="list"
-            aria-controls={listboxId}
+            aria-controls={
+              suggestions.length > 0 || canCreatePending ? listboxId : undefined
+            }
             aria-expanded={suggestions.length > 0 || canCreatePending}
             autoComplete="off"
             disabled={atLimit}
@@ -255,54 +257,55 @@ export function TagPicker({
             {canCreatePending ? tagPickerCopy.create : tagPickerCopy.add}
           </Button>
         </div>
-        <ul
-          aria-label={tagPickerCopy.suggestions}
-          id={listboxId}
-          role="listbox"
-          className="max-h-[min(40vh,16rem)] overflow-y-auto"
-        >
-          {suggestions.map((tag) => (
-            <li key={tag.id} role="presentation">
-              <button
-                aria-selected={false}
-                className="text-body text-text hover:bg-surface-hover flex min-h-11 w-full max-w-full items-center rounded-md px-3 text-left"
-                role="option"
-                tabIndex={-1}
-                type="button"
-                onClick={() => {
-                  addSelection({
-                    kind: "existing",
-                    tagId: tag.id,
-                    name: tag.name,
-                  });
-                }}
-              >
-                {tag.name}
-              </button>
-            </li>
-          ))}
-          {canCreatePending && typedSelection ? (
-            <li role="presentation">
-              <button
-                aria-selected={false}
-                className="text-body text-text hover:bg-surface-hover flex min-h-11 w-full max-w-full items-center rounded-md px-3 text-left"
-                role="option"
-                tabIndex={-1}
-                type="button"
-                onClick={() => {
-                  addSelection(typedSelection);
-                }}
-              >
-                {`${tagPickerCopy.create} «${typedSelection.name}»`}
-              </button>
-            </li>
-          ) : null}
-          {suggestions.length === 0 && !canCreatePending ? (
-            <li className="text-caption text-text-muted px-3 py-2">
-              {tagPickerCopy.empty}
-            </li>
-          ) : null}
-        </ul>
+        {suggestions.length > 0 || canCreatePending ? (
+          <ul
+            aria-label={tagPickerCopy.suggestions}
+            id={listboxId}
+            role="listbox"
+            className="max-h-[min(40vh,16rem)] overflow-y-auto"
+          >
+            {suggestions.map((tag) => (
+              <li key={tag.id} role="presentation">
+                <button
+                  aria-selected={false}
+                  className="text-body text-text hover:bg-surface-hover flex min-h-11 w-full max-w-full items-center rounded-md px-3 text-left"
+                  role="option"
+                  tabIndex={-1}
+                  type="button"
+                  onClick={() => {
+                    addSelection({
+                      kind: "existing",
+                      tagId: tag.id,
+                      name: tag.name,
+                    });
+                  }}
+                >
+                  {tag.name}
+                </button>
+              </li>
+            ))}
+            {canCreatePending && typedSelection ? (
+              <li role="presentation">
+                <button
+                  aria-selected={false}
+                  className="text-body text-text hover:bg-surface-hover flex min-h-11 w-full max-w-full items-center rounded-md px-3 text-left"
+                  role="option"
+                  tabIndex={-1}
+                  type="button"
+                  onClick={() => {
+                    addSelection(typedSelection);
+                  }}
+                >
+                  {`${tagPickerCopy.create} «${typedSelection.name}»`}
+                </button>
+              </li>
+            ) : null}
+          </ul>
+        ) : (
+          <p className="text-caption text-text-muted px-3 py-2" role="status">
+            {tagPickerCopy.empty}
+          </p>
+        )}
       </div>
     </Field>
   );
