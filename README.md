@@ -100,6 +100,13 @@ in this repository: it is read from an owner-installed file, and the provider,
 path and key of a real deployment are an owner decision documented in the
 runbook.
 
+Before any owner-authorized replacement, run
+`npm run restore:verify -- /path/to/artifact.sqlite.enc`. It decrypts and
+checks the artifact, applies current migrations and compares business counts on
+an isolated temporary copy only; it cannot replace either live database. The
+runbook defines the required pre-change backup, stop, rollback and observed
+rehearsal evidence; local verification does not claim a production recovery.
+
 ## Local development
 
 The project requires Node.js 24 and npm.

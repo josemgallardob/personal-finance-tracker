@@ -43,6 +43,7 @@ const backupCommand =
   "-e BACKUP_DESTINATION_URI=file:///backups " +
   "-e BACKUP_ENCRYPTION_KEY_FILE=/run/secrets/backup-key " +
   "app run backup:run";
+const packageManifest = read("package.json");
 
 describe("private operations templates", () => {
   it("keeps the HTTPS proxy on the Tailscale address and loopback upstream", () => {
@@ -144,5 +145,17 @@ describe("encrypted backup templates", () => {
     expect(runbook).toContain(
       "non-zero whenever the artifact did not reach the destination",
     );
+  });
+});
+
+describe("restore operation boundaries", () => {
+  it("documents an isolated verification before an explicitly authorised replacement", () => {
+    expect(packageManifest).toContain('"restore:verify"');
+    expect(runbook).toContain(
+      "`npm run restore:verify -- /path/to/artifact.sqlite.enc`",
+    );
+    expect(runbook).toContain("### Explicit-authority replacement procedure");
+    expect(runbook).toContain("no unattended live-replacement command");
+    expect(runbook).toContain("dated restore rehearsal");
   });
 });

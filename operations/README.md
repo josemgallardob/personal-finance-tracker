@@ -170,15 +170,63 @@ sudo journalctl -u personal-finance-backup.service -n 20 --no-pager
 - The upload is committed with a rename, and retention runs only afterwards. A
   refused upload therefore leaves every existing valid backup in place and
   fails the run.
-- Retention only ever considers files that carry this tool's name shape *and*
+- Retention only ever considers files that carry this tool's name shape _and_
   its encrypted signature. Anything else in the destination — an operator note,
   a foreign backup, an interrupted `.partial` upload — is never deleted.
 - Reports name the step and a closed reason code. They never print a database
   path, key material, an amount, a concept or a tag.
 
-Restoring an artifact into a live installation, including the pre-migration
-backup for a destructive schema change, is the rehearsed recovery procedure and
-is documented with the task that owns it.
+## Isolated restore verification and rollback
+
+`npm run restore:verify -- /path/to/artifact.sqlite.enc` decrypts an owned
+artifact into a fresh temporary directory, runs SQLite `integrity_check` and
+`foreign_key_check`, applies the current migrations only to that disposable
+copy, and compares transaction count, tag-association count, transaction total,
+recurring-rule count and occurrence count before and after migration. It prints
+only a closed status and the number of applied migrations; it never prints
+paths, counts, totals, concepts, tags or key material.
+
+The command never opens the configured personal or demonstration file for
+writing and deletes its temporary plaintext copy on either success or failure.
+A corrupt, renamed, foreign or incompatible artifact therefore exits non-zero
+before any replacement step is available to an operator. Repository tests are a
+temporary-data rehearsal, not evidence that a production artifact has been
+restored.
+
+### Explicit-authority replacement procedure
+
+Replacing a real database is destructive work and requires the owner's explicit
+authority for a maintenance window. Do not perform these steps against a live
+host merely because a repository check passed:
+
+1. Record the artifact name, intended database role, operator and approved
+   window outside the repository. Confirm that the target is the personal
+   database, never the isolated demonstration file.
+2. Run `npm run restore:verify -- /path/to/artifact.sqlite.enc` in a disposable
+   environment with the same migration files and the owner-installed key. Stop
+   on any non-zero exit; do not retry by bypassing integrity, migration or
+   count checks.
+3. Take and independently verify a fresh encrypted pre-change backup using
+   `npm run backup:run`. This is the rollback artifact for the change; stop if
+   it fails to reach the owner-approved destination.
+4. Stop the application cleanly and confirm that no process retains the SQLite
+   file. Preserve the original file unchanged until the replacement has passed
+   the same isolated verification and an operator has recorded the replacement
+   action.
+5. Start the application only after the operator has completed the approved
+   replacement using its host-controlled recovery tooling. Check migration,
+   recurrence catch-up and a harmless private-network read workflow before
+   declaring recovery complete.
+6. If the upgrade or smoke check fails, stop the application and repeat the
+   isolated verification with the pre-change backup before the operator restores
+   it. Do not use a backup whose verification failed, and do not delete either
+   the failed target or the rollback artifact until recovery is evidenced.
+
+This repository deliberately provides no unattended live-replacement command:
+the host path, running process and replacement authority are external
+operational decisions. Claim restore capability only after a dated rehearsal
+records a successful isolated verification, controlled replacement, application
+startup and business-count check with temporary or approved non-personal data.
 
 ## Required observed smoke evidence
 
@@ -207,6 +255,9 @@ following observed, redacted results:
   on a disposable host and passes `integrity_check`; and
 - after nine consecutive daily runs the destination holds the expected retained
   set and every unrelated file the operator placed there is still present.
+- a dated restore rehearsal records the artifact's successful isolated
+  verification, a controlled replacement in a disposable environment, successful
+  startup and matching business counts without recording financial data.
 
 Record dates, command exit statuses, listener addresses, certificate hostname,
 and redacted HTTP statuses. Do not record credentials, URLs containing private
