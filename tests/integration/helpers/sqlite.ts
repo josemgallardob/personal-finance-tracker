@@ -7,12 +7,13 @@
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { APPLICATION_TIME_ZONE } from "../../../src/shared/domain/clock";
 import {
   APP_URL_ENV,
   DATABASE_PATH_ENV,
+  DEMO_DATABASE_PATH_ENV,
   type EnvSource,
   TIME_ZONE_ENV,
 } from "../../../src/shared/server/config";
@@ -45,6 +46,7 @@ export function createValidAppEnv(
 ): EnvSource {
   return {
     [DATABASE_PATH_ENV]: filePath,
+    [DEMO_DATABASE_PATH_ENV]: join(dirname(filePath), "demo-finance.sqlite"),
     [APP_URL_ENV]: "http://localhost:3000",
     [TIME_ZONE_ENV]: APPLICATION_TIME_ZONE,
     ...overrides,

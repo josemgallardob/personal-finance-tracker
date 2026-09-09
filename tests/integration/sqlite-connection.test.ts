@@ -240,6 +240,7 @@ describe("getSqliteConnection", () => {
       error: {
         code: "invalidConfig",
         configErrors: [
+          { field: "demoDatabasePath", code: "required" },
           { field: "appUrl", code: "required" },
           { field: "timeZone", code: "required" },
         ],

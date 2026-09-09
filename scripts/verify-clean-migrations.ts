@@ -93,6 +93,10 @@ function runMigrate(databasePath: string): MigrationRun {
     env: {
       ...process.env,
       DATABASE_PATH: databasePath,
+      DEMO_DATABASE_PATH: join(
+        dirname(databasePath),
+        "personal-finance-demo.db",
+      ),
       APP_URL: "http://localhost:3000",
       TZ: "Europe/Madrid",
     },

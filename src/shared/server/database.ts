@@ -1,8 +1,8 @@
 /**
  * Lazy server-only SQLite connection.
  *
- * The application keeps a single process and opens at most one connection. The
- * file is opened on first use, never at import time and never during
+ * The application keeps one lazy connection per server-selected application
+ * mode. Files are opened on first use, never at import time and never during
  * `next build`, so a production build does not need a database file. Each
  * connection enables WAL, foreign keys and a bounded busy timeout.
  */
@@ -23,6 +23,10 @@ import {
   type EnvSource,
   loadAppConfig,
 } from "./config";
+import {
+  PERSONAL_APPLICATION_MODE,
+  type ApplicationMode,
+} from "../../modules/preferences/contracts";
 
 /** Busy-wait budget applied to every connection, in milliseconds. */
 export const SQLITE_BUSY_TIMEOUT_MS = 5_000;
@@ -55,7 +59,7 @@ export type DatabaseResult<TValue> =
   | { readonly ok: true; readonly value: TValue }
   | { readonly ok: false; readonly error: DatabaseError };
 
-let activeConnection: SqliteConnection | undefined;
+const activeConnections = new Map<ApplicationMode, SqliteConnection>();
 
 /**
  * Opens a real SQLite file with the production PRAGMAs.
@@ -121,17 +125,20 @@ export function openSqliteConnection(
 }
 
 /**
- * Returns the process-wide connection, opening it on the first call.
+ * Returns the process-wide connection for a server-selected mode, opening it
+ * on the first call.
  *
- * Configuration is read from `source` only when no connection is open yet.
- * Later calls reuse the same connection so the application stays on one
- * process and one file. A production Next.js build is rejected before the
- * file is touched.
+ * Configuration is read from `source` only when this mode has no connection
+ * yet. Later calls reuse the same mode-specific connection. A production
+ * Next.js build is rejected before either file is touched.
  */
 export function getSqliteConnection(
   source: EnvSource = process.env,
+  mode: ApplicationMode = PERSONAL_APPLICATION_MODE,
 ): DatabaseResult<SqliteConnection> {
-  if (activeConnection) {
+  const activeConnection = activeConnections.get(mode);
+
+  if (activeConnection !== undefined) {
     return { ok: true, value: activeConnection };
   }
 
@@ -148,31 +155,47 @@ export function getSqliteConnection(
     };
   }
 
-  const opened = openSqliteConnection(config.value);
+  const opened = openSqliteConnection({
+    ...config.value,
+    databasePath:
+      mode === PERSONAL_APPLICATION_MODE
+        ? config.value.databasePath
+        : config.value.demoDatabasePath,
+  });
 
   if (!opened.ok) {
     return opened;
   }
 
-  activeConnection = opened.value;
+  activeConnections.set(mode, opened.value);
   return opened;
 }
 
+/** Returns the connection for the fixed personal database path. */
+export function getPersonalSqliteConnection(
+  source: EnvSource = process.env,
+): DatabaseResult<SqliteConnection> {
+  return getSqliteConnection(source, PERSONAL_APPLICATION_MODE);
+}
+
+/** Returns the connection for the fixed isolated demonstration database path. */
+export function getDemoSqliteConnection(
+  source: EnvSource = process.env,
+): DatabaseResult<SqliteConnection> {
+  return getSqliteConnection(source, "demo");
+}
+
 /**
- * Closes the process-wide connection if it is open.
+ * Closes every process-wide mode connection if it is open.
  *
  * Safe to call when nothing was opened, when the connection was already
  * closed, or after a failed open.
  */
 export function closeSqliteConnection(): void {
-  const connection = activeConnection;
-  activeConnection = undefined;
-
-  if (!connection) {
-    return;
+  for (const connection of activeConnections.values()) {
+    connection.close();
   }
-
-  connection.close();
+  activeConnections.clear();
 }
 
 function applyConnectionPragmas(sqlite: Database.Database): void {

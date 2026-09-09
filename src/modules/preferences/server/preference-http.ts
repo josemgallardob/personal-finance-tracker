@@ -1,11 +1,11 @@
 /**
  * Preferences HTTP handler.
  *
- * GET the fixed personal configuration and the civil day the server clock
- * reports in Madrid. There is no mutation endpoint: locale, currency, time
- * zone and mode are not client-writable. The handler is a factory so tests
- * inject the same environment, connection, clock and log sink the composition
- * already uses, while the route file calls the factory with process defaults.
+ * GET the fixed configuration and the civil day the server clock reports in
+ * Madrid. Locale, currency and time zone are not client-writable; the mode is
+ * read only from the validated session cookie. The handler is a factory so
+ * tests inject the same environment, connection, clock and log sink the
+ * composition already uses, while the route file calls it with process defaults.
  */
 
 import "server-only";
@@ -39,7 +39,7 @@ export function createGetPreferencesHandler(
             locale: context.workspace.locale,
             currency: context.workspace.currency,
             timeZone: context.workspace.timeZone,
-            mode: composition.mode,
+            mode: context.mode,
             today: composition.clock.today(),
           }),
         });

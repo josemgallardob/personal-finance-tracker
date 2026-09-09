@@ -11,8 +11,11 @@ const preferences = {
 };
 
 describe("preferences HTTP contract", () => {
-  it("accepts the documented personal configuration", () => {
+  it("accepts the documented personal and demo configurations", () => {
     expect(preferencesDtoSchema.parse(preferences)).toEqual(preferences);
+    expect(
+      preferencesDtoSchema.parse({ ...preferences, mode: "demo" }),
+    ).toEqual({ ...preferences, mode: "demo" });
   });
 
   it("refuses another locale, mode, a leaked workspace or an invalid day", () => {
@@ -21,7 +24,8 @@ describe("preferences HTTP contract", () => {
         .success,
     ).toBe(false);
     expect(
-      preferencesDtoSchema.safeParse({ ...preferences, mode: "demo" }).success,
+      preferencesDtoSchema.safeParse({ ...preferences, mode: "unknown" })
+        .success,
     ).toBe(false);
     expect(
       preferencesDtoSchema.safeParse({ ...preferences, workspaceId: "w-1" })
