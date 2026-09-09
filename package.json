@@ -7,9 +7,10 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 127.0.0.1",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 127.0.0.1",
+    "start:server": "tsx --conditions react-server scripts/start-server.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"db/**/*.ts\" \"scripts/**/*.ts\" \"*.{json,ts,mjs}\" \".github/**/*.yml\" \".secretlintrc.json\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"db/**/*.ts\" \"scripts/**/*.ts\" \"*.{json,ts,mjs}\" \".github/**/*.yml\" \".secretlintrc.json\"",
     "db:generate": "drizzle-kit generate",
@@ -17,6 +18,8 @@
     "db:migrate:demo": "tsx --conditions react-server scripts/migrate-demo.ts",
     "db:seed:demo": "tsx --conditions react-server scripts/seed-demo.ts",
     "recurring:run": "tsx --conditions react-server scripts/run-recurring.ts",
+    "backup:run": "tsx --conditions react-server scripts/backup.ts",
+    "restore:verify": "tsx --conditions react-server scripts/verify-restore.ts",
     "verify:clean-migrations": "tsx scripts/verify-clean-migrations.ts",
     "verify:build-without-database": "tsx scripts/verify-build-without-database.ts",
     "lint": "eslint . --max-warnings=0",

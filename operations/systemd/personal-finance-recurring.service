@@ -1,0 +1,12 @@
+[Unit]
+Description=Personal Finance Tracker recurring transaction catch-up
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=__APP_DIRECTORY__
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# `docker compose run` reuses app's env_file and both named volumes from
+# compose.yml. It does not publish the app port unless --service-ports is set.
+ExecStart=/usr/bin/env docker compose run --rm --no-deps --entrypoint npm app run recurring:run

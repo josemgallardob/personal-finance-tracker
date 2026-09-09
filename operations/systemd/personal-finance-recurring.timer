@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Personal Finance Tracker recurring catch-up daily
+
+[Timer]
+OnCalendar=*-*-* 03:17:00
+Persistent=true
+RandomizedDelaySec=15m
+Unit=personal-finance-recurring.service
+
+[Install]
+WantedBy=timers.target

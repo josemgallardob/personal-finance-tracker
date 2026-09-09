@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Personal Finance Tracker encrypted backup daily
+
+[Timer]
+OnCalendar=*-*-* 04:23:00
+Persistent=true
+RandomizedDelaySec=15m
+Unit=personal-finance-backup.service
+
+[Install]
+WantedBy=timers.target

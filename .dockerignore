@@ -1,0 +1,33 @@
+# Build context exclusions.
+#
+# Secrets, personal SQLite files and local build output never enter an image
+# layer. Only sources, the lockfile and the committed migrations are copied.
+.env
+.env.*
+!.env.example
+data/
+backups/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+.git
+.github
+.next
+node_modules
+coverage
+test-results
+playwright-report
+blob-report
+playwright/.cache
+docs
+tests
+README.md
+AGENTS.md
+CLAUDE.md
+compose.yml
+Dockerfile
+.dockerignore

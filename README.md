@@ -51,6 +51,62 @@ Create the first functional prototype using the documented visual conventions
 and complete the remaining decisions from phase 0 of the
 [implementation plan](docs/06-plan-implementacion.md).
 
+## Private deployment
+
+The private deployment runs a single application container with SQLite on local
+disk. Configuration and credentials come from a `.env` file on the host, which
+is never committed and never copied into an image layer.
+
+```bash
+cp .env.example .env   # then set APP_URL and the host port
+docker compose up -d --build
+```
+
+What the templates guarantee:
+
+- one unprivileged runtime user (`node`), no capabilities and no privilege
+  escalation;
+- one durable volume for the personal database and a separate one for the
+  isolated demonstration database, so recreating the container keeps both;
+- the port is published on `127.0.0.1` only, so remote access depends on the
+  private VPN or a local reverse proxy, never on this file;
+- the image build never opens SQLite; migrations run at container start.
+
+Every start runs the same ordered sequence before the server accepts requests:
+migrate and bootstrap the personal database, migrate the demonstration
+database, catch up the missed monthly due dates, then serve. A failed step
+exits non-zero and the container never serves a half-migrated database.
+`docker compose down` stops the container and keeps both volumes;
+`docker compose up -d` recreates it with the same data.
+
+The same sequence runs locally against the built application:
+
+```bash
+npm run build
+npm run start:server
+```
+
+Remote access over the private VPN and the daily schedulers are operated outside
+this repository. The [private Tailscale operations
+runbook](operations/README.md) provides installation templates and the required
+owner-observed smoke evidence for HTTPS access, recurrence scheduling and the
+encrypted backup.
+
+`npm run backup:run` writes a consistent SQLite snapshot, encrypts it with
+AES-256-GCM and uploads it to the configured destination before applying a
+7 daily / 4 weekly / 12 monthly retention over the artifacts it owns. It exits
+non-zero when the artifact did not reach the destination. The key never lives
+in this repository: it is read from an owner-installed file, and the provider,
+path and key of a real deployment are an owner decision documented in the
+runbook.
+
+Before any owner-authorized replacement, run
+`npm run restore:verify -- /path/to/artifact.sqlite.enc`. It decrypts and
+checks the artifact, applies current migrations and compares business counts on
+an isolated temporary copy only; it cannot replace either live database. The
+runbook defines the required pre-change backup, stop, rollback and observed
+rehearsal evidence; local verification does not claim a production recovery.
+
 ## Local development
 
 The project requires Node.js 24 and npm.
