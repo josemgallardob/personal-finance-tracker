@@ -21,6 +21,7 @@ import {
 import { sqliteCategoryRepository } from "../../classification/infrastructure/sqlite-category-repository";
 import { sqliteTagRepository } from "../../classification/infrastructure/sqlite-tag-repository";
 import type { Clock } from "../../../shared/domain/clock";
+import type { SqliteConnection } from "../../../shared/server/database";
 import { domainError } from "../../../shared/domain/errors";
 import {
   accepted,
@@ -43,7 +44,6 @@ import { sqliteTransactionQuery } from "../infrastructure/sqlite-list-transactio
 import { sqliteTransactionRepository } from "../infrastructure/sqlite-transaction-repository";
 import type { Transaction, TransactionId } from "../domain/transaction";
 import {
-  toTransactionCursorPageDto,
   toTransactionDto,
   type TransactionCursorPageDto,
   type TransactionDto,
@@ -118,6 +118,24 @@ function toWriteCommand(workspaceId: string, body: TransactionWriteBody) {
   };
 }
 
+function toTransactionDtoWithOccurrence(
+  connection: SqliteConnection,
+  transaction: Transaction,
+): TransactionDto {
+  const occurrence = connection.sqlite
+    .prepare(
+      "SELECT recurring_rule_id AS recurringRuleId, scheduled_for AS scheduledFor FROM recurring_occurrence WHERE transaction_id = ?",
+    )
+    .get(transaction.id) as
+    | { readonly recurringRuleId: string; readonly scheduledFor: string }
+    | undefined;
+
+  return {
+    ...toTransactionDto(transaction),
+    ...(occurrence === undefined ? {} : occurrence),
+  };
+}
+
 /** GET /api/transactions. */
 export function createListTransactionsHandler(
   deps: TransactionHttpDeps = {},
@@ -156,10 +174,12 @@ export function createListTransactionsHandler(
 
         return accepted({
           status: 200,
-          data: toTransactionCursorPageDto(
-            listed.value.items,
-            listed.value.nextCursor,
-          ),
+          data: {
+            items: listed.value.items.map((transaction) =>
+              toTransactionDtoWithOccurrence(context.connection, transaction),
+            ),
+            nextCursor: listed.value.nextCursor,
+          },
         });
       },
     },
@@ -206,7 +226,10 @@ export function createCreateTransactionHandler(
                   ruleId: created.value.rule.id,
                   nextDueDate: created.value.rule.nextDueDate,
                 })
-              : toTransactionDto(created.value),
+              : toTransactionDtoWithOccurrence(
+                  context.connection,
+                  created.value,
+                ),
         });
       },
     },
@@ -228,6 +251,7 @@ export function createGetTransactionHandler(
         }
 
         return mapFound(
+          context.connection,
           fromTransaction(
             sqliteTransactionRepository.findTransactionById(
               autocommit(context.connection),
@@ -267,7 +291,7 @@ export function createUpdateTransactionHandler(
           ),
         );
 
-        return mapItem(updated);
+        return mapItem(context.connection, updated);
       },
     },
     deps,
@@ -308,16 +332,21 @@ export function createDeleteTransactionHandler(
 }
 
 function mapItem(
+  connection: SqliteConnection,
   result: ApiResult<Transaction>,
 ): ApiResult<ApiSuccess<TransactionDto>> {
   if (!result.ok) {
     return result;
   }
 
-  return accepted({ status: 200, data: toTransactionDto(result.value) });
+  return accepted({
+    status: 200,
+    data: toTransactionDtoWithOccurrence(connection, result.value),
+  });
 }
 
 function mapFound(
+  connection: SqliteConnection,
   result: ApiResult<Transaction | null>,
 ): ApiResult<ApiSuccess<TransactionDto>> {
   if (!result.ok) {
@@ -328,5 +357,8 @@ function mapFound(
     return refused(toApiFailure([domainError("id", "notFound")]));
   }
 
-  return accepted({ status: 200, data: toTransactionDto(result.value) });
+  return accepted({
+    status: 200,
+    data: toTransactionDtoWithOccurrence(connection, result.value),
+  });
 }
