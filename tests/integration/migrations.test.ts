@@ -110,6 +110,13 @@ describe("applyMigrations", () => {
       { name: "transaction_tag" },
       { name: "workspace" },
     ]);
+    expect(
+      connection.sqlite
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'transaction_workspace_pagination_idx'",
+        )
+        .all(),
+    ).toEqual([{ name: "transaction_workspace_pagination_idx" }]);
     connection.close();
   });
 

@@ -197,7 +197,7 @@ export function DemoModeControls({
     return (
       <section
         aria-label={demoCopy.banner}
-        className="border-primary bg-surface-raised flex w-full max-w-full flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+        className="border-primary bg-surface-raised flex w-full max-w-full flex-col flex-wrap gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
         role="status"
       >
         <div>
@@ -206,7 +206,7 @@ export function DemoModeControls({
             {demoCopy.resetDescription}
           </p>
         </div>
-        <div className="flex max-w-full flex-col gap-2 sm:flex-row">
+        <div className="flex max-w-full flex-col flex-wrap gap-2 sm:flex-row">
           <ResetDemoDialog client={apiClient} reload={reload} />
           <ExitDemoAction client={apiClient} reload={reload} />
         </div>
@@ -216,7 +216,7 @@ export function DemoModeControls({
 
   if (preferences.data?.mode === "personal") {
     return (
-      <section className="border-border bg-surface-raised flex w-full max-w-full flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+      <section className="border-border bg-surface-raised flex w-full max-w-full flex-col flex-wrap gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-body-sm text-text-muted">
           {demoCopy.enterDescription}
         </p>

@@ -32,6 +32,7 @@ import {
   type BackupWorkspace,
 } from "../helpers/backup";
 import {
+  COMMITTED_MIGRATION_TAGS,
   createTemporaryMigrationFolder,
   writeMigrationJournal,
 } from "../helpers/migrations";
@@ -206,7 +207,7 @@ describe("isolated restore verification", () => {
     ).resolves.toEqual({
       ok: true,
       value: {
-        migrationsApplied: ["0003_recurring_rules_and_occurrences"],
+        migrationsApplied: [...COMMITTED_MIGRATION_TAGS.slice(3)],
         shape: {
           transactions: 1,
           transactionTags: 0,

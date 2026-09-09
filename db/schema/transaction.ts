@@ -64,6 +64,12 @@ export const transaction = sqliteTable(
       table.workspaceId,
     ),
     index("transaction_workspace_date_idx").on(table.workspaceId, table.date),
+    index("transaction_workspace_pagination_idx").on(
+      table.workspaceId,
+      table.date,
+      table.createdAt,
+      table.id,
+    ),
     index("transaction_workspace_type_date_idx").on(
       table.workspaceId,
       table.type,

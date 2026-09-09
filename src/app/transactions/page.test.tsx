@@ -55,7 +55,7 @@ beforeEach(() => {
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
-      matches: query.includes("640px"),
+      matches: query.includes("1024px"),
       media: query,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),

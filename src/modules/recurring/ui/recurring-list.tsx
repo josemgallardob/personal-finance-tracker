@@ -136,7 +136,7 @@ export function RecurringList({ client }: RecurringListProps = {}) {
     }
 
     return (
-      <div
+      <section
         aria-label={recurringCopy.listLabel}
         className="flex w-full max-w-full min-w-0 flex-col gap-6"
       >
@@ -160,7 +160,7 @@ export function RecurringList({ client }: RecurringListProps = {}) {
             setDialog({ mode, ruleId });
           }}
         />
-      </div>
+      </section>
     );
   })();
 

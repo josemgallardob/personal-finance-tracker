@@ -250,6 +250,7 @@ describe("integer amount upgrade", () => {
       "transaction_id_workspace_unique",
       "transaction_tag_tag_transaction_idx",
       "transaction_workspace_date_idx",
+      "transaction_workspace_pagination_idx",
       "transaction_workspace_type_date_idx",
     ]);
     expect(connection.sqlite.pragma("foreign_key_check")).toEqual([]);

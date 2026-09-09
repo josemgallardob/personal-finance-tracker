@@ -55,7 +55,7 @@ function stubViewport(isDesktop: boolean) {
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
-      matches: isDesktop && query.includes("640px"),
+      matches: isDesktop && query.includes("1024px"),
       media: query,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),

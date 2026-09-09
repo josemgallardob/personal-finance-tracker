@@ -29,6 +29,13 @@
       "when": 1788885380135,
       "tag": "0003_recurring_rules_and_occurrences",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788980345822,
+      "tag": "0004_add_pagination_index",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,7 @@ import {
 import type { Transaction } from "../../transactions/domain/transaction";
 import {
   type GenerateDueOccurrencesDeps,
+  catchUpDueDatesInUnit,
   createGenerateDueOccurrences,
 } from "./generate-due-occurrences";
 import type { DueDateRunner } from "./ports/due-date-runner";
@@ -898,5 +899,152 @@ describe("createGenerateDueOccurrences", () => {
         ],
       },
     });
+  });
+});
+
+describe("catchUpDueDatesInUnit", () => {
+  const transactionalUnit: UnitOfWork = { isTransactional: true };
+  const ruleId = storedRule().rule.id;
+
+  it("refuses a catch-up whose rule disappeared before the write", () => {
+    const caughtUp = catchUpDueDatesInUnit(transactionalUnit, {
+      workspaceId: WORKSPACE_ID,
+      ruleId,
+      today: TODAY,
+      deps: {
+        rules: rules({ findRuleForUpdate: () => succeeded(null) }),
+        occurrences: occurrences(),
+        transactions: transactions(),
+      },
+      createId: sequentialIds("gen"),
+      now: () => NOW,
+    });
+
+    expect(caughtUp).toEqual({
+      ok: false,
+      error: { code: "ruleNotFound", cause: undefined },
+    });
+  });
+
+  it("refuses a catch-up whose rule was deactivated before the write", () => {
+    const caughtUp = catchUpDueDatesInUnit(transactionalUnit, {
+      workspaceId: WORKSPACE_ID,
+      ruleId,
+      today: TODAY,
+      deps: {
+        rules: rules({
+          findRuleForUpdate: () =>
+            succeeded(storedRule({ deactivatedAt: NOW })),
+        }),
+        occurrences: occurrences(),
+        transactions: transactions(),
+      },
+      createId: sequentialIds("gen"),
+      now: () => NOW,
+    });
+
+    expect(caughtUp).toEqual({
+      ok: false,
+      error: { code: "ruleNotFound", cause: undefined },
+    });
+  });
+
+  it("stops the catch-up and reports the storage failure of a due date", () => {
+    let reservations = 0;
+
+    const caughtUp = catchUpDueDatesInUnit(transactionalUnit, {
+      workspaceId: WORKSPACE_ID,
+      ruleId,
+      today: TODAY,
+      deps: {
+        rules: rules({
+          findRuleForUpdate: () => succeeded(storedRule()),
+          advanceNextDueDate: (_unit, command) => succeeded(command.to),
+        }),
+        occurrences: occurrences({
+          reserveOccurrence: () => {
+            reservations += 1;
+            return failed(
+              "storageFailure",
+              "the reservation could not be written",
+            );
+          },
+        }),
+        transactions: transactions(),
+      },
+      createId: sequentialIds("gen"),
+      now: () => NOW,
+    });
+
+    expect(caughtUp).toEqual({
+      ok: false,
+      error: {
+        code: "storageFailure",
+        cause: "the reservation could not be written",
+      },
+    });
+    expect(reservations).toBe(1);
+  });
+
+  it("refuses the catch-up when the rule moved on between the read and the write", () => {
+    let reads = 0;
+
+    const caughtUp = catchUpDueDatesInUnit(transactionalUnit, {
+      workspaceId: WORKSPACE_ID,
+      ruleId,
+      today: TODAY,
+      deps: {
+        rules: rules({
+          findRuleForUpdate: () => {
+            reads += 1;
+            return succeeded(
+              reads === 1
+                ? storedRule()
+                : storedRule({ nextDueDate: "2026-09-30" }),
+            );
+          },
+        }),
+        occurrences: occurrences(),
+        transactions: transactions(),
+      },
+      createId: sequentialIds("gen"),
+      now: () => NOW,
+    });
+
+    expect(caughtUp).toEqual({
+      ok: false,
+      error: { code: "staleNextDueDate", cause: undefined },
+    });
+    expect(reads).toBe(2);
+  });
+
+  it("advances over a date another run already reserved without writing it twice", () => {
+    let inserts = 0;
+
+    const caughtUp = catchUpDueDatesInUnit(transactionalUnit, {
+      workspaceId: WORKSPACE_ID,
+      ruleId,
+      today: TODAY,
+      deps: {
+        rules: rules({
+          findRuleForUpdate: () => succeeded(storedRule()),
+          advanceNextDueDate: (_unit, command) => succeeded(command.to),
+        }),
+        occurrences: occurrences({
+          reserveOccurrence: () => failed("alreadyProcessed"),
+        }),
+        transactions: transactions({
+          insertTransaction: (_unit, command) => {
+            inserts += 1;
+            return transactionSucceeded(command.transaction);
+          },
+        }),
+      },
+      createId: sequentialIds("gen"),
+      now: () => NOW,
+    });
+
+    expect(caughtUp).toEqual({ ok: true, value: [] });
+    expect(inserts).toBe(0);
   });
 });

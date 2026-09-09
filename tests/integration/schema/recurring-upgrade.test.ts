@@ -27,6 +27,7 @@ import {
   SCHEMA_MIGRATION_TABLE,
 } from "../../../src/shared/server/migrate";
 import {
+  COMMITTED_MIGRATION_TAGS,
   createTemporaryMigrationFolder,
   writeMigrationJournal,
 } from "../helpers/migrations";
@@ -42,8 +43,9 @@ const MIGRATIONS_BEFORE_UPGRADE = [
   "0002_require_integer_amount_minor",
 ] as const;
 
-/** Tag of the migration under test. */
-const RECURRING_UPGRADE_TAG = "0003_recurring_rules_and_occurrences";
+const MIGRATIONS_FROM_RECURRING_UPGRADE = COMMITTED_MIGRATION_TAGS.filter(
+  (tag) => !(MIGRATIONS_BEFORE_UPGRADE as readonly string[]).includes(tag),
+);
 
 const NOW = 1_746_268_800_000;
 const WORKSPACE_ID = "workspace-personal";
@@ -227,7 +229,7 @@ describe("recurrence tables upgrade", () => {
 
     expect(migrated.ok).toBe(true);
     expect(migrated.ok && migrated.value.applied).toEqual([
-      RECURRING_UPGRADE_TAG,
+      ...MIGRATIONS_FROM_RECURRING_UPGRADE,
     ]);
     expect(migrated.ok && migrated.value.skipped).toEqual([
       ...MIGRATIONS_BEFORE_UPGRADE,
@@ -291,7 +293,7 @@ describe("recurrence tables upgrade", () => {
       ok: true,
       value: {
         applied: [],
-        skipped: [...MIGRATIONS_BEFORE_UPGRADE, RECURRING_UPGRADE_TAG],
+        skipped: [...COMMITTED_MIGRATION_TAGS],
       },
     });
     expect(
