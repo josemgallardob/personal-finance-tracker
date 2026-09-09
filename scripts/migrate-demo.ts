@@ -19,7 +19,6 @@ if (!opened.ok) {
 }
 
 const initialized = initializeDatabase(opened.value);
-
 closeSqliteConnection();
 
 if (!initialized.ok) {
