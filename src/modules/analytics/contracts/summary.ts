@@ -281,6 +281,8 @@ export function toDashboardSummaryDto(
       toCategoryExpenseDto(entry, summary.range),
     ),
     expenseByTag: toTagExpenseBreakdownDto(summary.expenseByTag, summary.range),
-    recentTransactions: summary.recentTransactions.map(toTransactionDto),
+    recentTransactions: summary.recentTransactions.map((transaction) =>
+      toTransactionDto(transaction),
+    ),
   };
 }

@@ -13,6 +13,11 @@ import "server-only";
 import type { z } from "zod";
 
 import { sqliteRecurringOccurrenceRepository } from "../../recurring/infrastructure/sqlite-recurring-occurrence-repository";
+import { sqliteRecurringRuleRepository } from "../../recurring/infrastructure/sqlite-recurring-rule-repository";
+import {
+  createRecurringLifecycle,
+  type ActivatedWithTransaction,
+} from "../../recurring/application/services/recurring-lifecycle";
 import { sqliteCategoryRepository } from "../../classification/infrastructure/sqlite-category-repository";
 import { sqliteTagRepository } from "../../classification/infrastructure/sqlite-tag-repository";
 import type { Clock } from "../../../shared/domain/clock";
@@ -50,11 +55,13 @@ import {
   runDomainInTransaction,
   tagIdsFromQuery,
   transactionIdFrom,
+  transactionCreateBodySchema,
   transactionListQuerySchema,
   transactionWriteBodySchema,
 } from "./http";
 
 type TransactionListQuery = z.infer<typeof transactionListQuerySchema>;
+type TransactionCreateBody = z.infer<typeof transactionCreateBodySchema>;
 type TransactionWriteBody = z.infer<typeof transactionWriteBodySchema>;
 
 /** Collaborators of the transaction handlers. Clock and identifiers are test seams. */
@@ -84,6 +91,16 @@ function writeServices(deps: TransactionHttpDeps) {
     remove: createDeleteTransaction({
       transactions: sqliteTransactionRepository,
       occurrences: sqliteRecurringOccurrenceRepository,
+    }),
+    recurring: createRecurringLifecycle({
+      rules: sqliteRecurringRuleRepository,
+      occurrences: sqliteRecurringOccurrenceRepository,
+      transactions: sqliteTransactionRepository,
+      categories: sqliteCategoryRepository,
+      tags: sqliteTagRepository,
+      clock: deps.clock,
+      createId: deps.createId,
+      now: deps.now,
     }),
   };
 }
@@ -154,16 +171,26 @@ export function createListTransactionsHandler(
 export function createCreateTransactionHandler(
   deps: TransactionHttpDeps = {},
 ): ApiHandler {
-  return createApiHandler<TransactionWriteBody, undefined, TransactionDto>(
+  return createApiHandler<TransactionCreateBody, undefined, TransactionDto>(
     {
-      bodySchema: transactionWriteBodySchema,
+      bodySchema: transactionCreateBodySchema,
       handle(context) {
         const created = fromDomain(
-          runDomainInTransaction(context.connection, (unit) =>
-            writeServices(deps).create.execute(
-              unit,
-              toWriteCommand(context.workspaceId, context.body),
-            ),
+          runDomainInTransaction<Transaction | ActivatedWithTransaction>(
+            context.connection,
+            (unit) =>
+              context.body.recurrence === undefined
+                ? writeServices(deps).create.execute(
+                    unit,
+                    toWriteCommand(context.workspaceId, context.body),
+                  )
+                : writeServices(deps).recurring.activateWithNewTransaction(
+                    unit,
+                    {
+                      ...toWriteCommand(context.workspaceId, context.body),
+                      monthlyDay: context.body.recurrence.monthlyDay,
+                    },
+                  ),
           ),
         );
 
@@ -171,7 +198,16 @@ export function createCreateTransactionHandler(
           return created;
         }
 
-        return accepted({ status: 201, data: toTransactionDto(created.value) });
+        return accepted({
+          status: 201,
+          data:
+            "transaction" in created.value
+              ? toTransactionDto(created.value.transaction, {
+                  ruleId: created.value.rule.id,
+                  nextDueDate: created.value.rule.nextDueDate,
+                })
+              : toTransactionDto(created.value),
+        });
       },
     },
     deps,
