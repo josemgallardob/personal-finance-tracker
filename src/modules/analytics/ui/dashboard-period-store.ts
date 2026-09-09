@@ -9,9 +9,10 @@
  * read the movements behind a figure and coming back must return the owner to
  * the period they were reading, not to the default one.
  *
- * A period is a calendar choice — a preset, or two natural months — and carries
- * nothing about the workspace it is read against, so it is stored under a
- * single key rather than one per application mode.
+ * A period is a calendar choice — a preset, or two natural months — but it
+ * still belongs to the database that supplied the dashboard. Its storage key
+ * therefore includes the server-validated application mode, so a demo choice
+ * cannot shape the returning personal dashboard.
  *
  * A stored value that is not a documented period is ignored instead of being
  * repaired, so a corrupted entry costs the owner one selection and never an
@@ -31,8 +32,13 @@ import {
 } from "../domain/periods";
 import { DEFAULT_DASHBOARD_PERIOD } from "./dashboard-period";
 
-/** Key the selected period is stored under. */
-export const DASHBOARD_PERIOD_STORAGE_KEY = "dashboard:period";
+/** Prefix of the mode-scoped key used for the selected dashboard period. */
+export const DASHBOARD_PERIOD_STORAGE_PREFIX = "dashboard:period";
+
+/** Builds the storage key for one server-validated application mode. */
+export function dashboardPeriodStorageKey(mode: string): string {
+  return `${DASHBOARD_PERIOD_STORAGE_PREFIX}:${mode}`;
+}
 
 const listeners = new Set<() => void>();
 
@@ -74,13 +80,16 @@ function isPeriodKind(value: unknown): value is DashboardPeriodKind {
 }
 
 /** Raw stored text of the period, or null when the session has none. */
-export function readPeriodEntry(storage: SeriesStorage | null): string | null {
+export function readPeriodEntry(
+  storage: SeriesStorage | null,
+  key: string,
+): string | null {
   if (storage === null) {
     return null;
   }
 
   try {
-    return storage.getItem(DASHBOARD_PERIOD_STORAGE_KEY);
+    return storage.getItem(key);
   } catch {
     return null;
   }
@@ -130,6 +139,7 @@ export function parseStoredPeriod(raw: string | null): DashboardPeriod | null {
 /** Stores the selected period, ignoring a storage that refuses to keep it. */
 export function writeStoredPeriod(
   storage: SeriesStorage | null,
+  key: string,
   period: DashboardPeriod,
 ): void {
   if (storage === null) {
@@ -137,7 +147,7 @@ export function writeStoredPeriod(
   }
 
   try {
-    storage.setItem(DASHBOARD_PERIOD_STORAGE_KEY, JSON.stringify(period));
+    storage.setItem(key, JSON.stringify(period));
   } catch {
     return;
   }
@@ -152,6 +162,8 @@ export interface DashboardPeriodSelection {
 export interface UseDashboardPeriodOptions {
   /** Period of a session that has never chosen one. */
   readonly initialPeriod?: DashboardPeriod;
+  /** Application mode that supplied the dashboard data, unknown while loading. */
+  readonly mode?: string | null;
   /** Session storage. Tests replace this at the browser boundary. */
   readonly storage?: SeriesStorage | null;
 }
@@ -159,23 +171,37 @@ export interface UseDashboardPeriodOptions {
 /** Reads and keeps the period of the dashboard for this session. */
 export function useDashboardPeriod({
   initialPeriod = DEFAULT_DASHBOARD_PERIOD,
+  mode = null,
   storage,
 }: UseDashboardPeriodOptions = {}): DashboardPeriodSelection {
   const session = storage === undefined ? browserSessionStorage() : storage;
-  const readEntry = useCallback(() => readPeriodEntry(session), [session]);
+  const key = mode === null ? null : dashboardPeriodStorageKey(mode);
+  const readEntry = useCallback(
+    () => (key === null ? null : readPeriodEntry(session, key)),
+    [key, session],
+  );
   // The server has no session, so it always paints the default period.
   const entry = useSyncExternalStore(subscribe, readEntry, () => null);
   const stored = useMemo(() => parseStoredPeriod(entry), [entry]);
-  const [chosen, setChosen] = useState<DashboardPeriod | null>(null);
+  const [chosen, setChosen] = useState<{
+    readonly key: string;
+    readonly period: DashboardPeriod;
+  } | null>(null);
+  const localPeriod =
+    chosen !== null && chosen.key === key ? chosen.period : null;
 
   const setPeriod = useCallback(
     (next: DashboardPeriod) => {
-      setChosen(next);
-      writeStoredPeriod(session, next);
+      if (key === null) {
+        return;
+      }
+
+      setChosen({ key, period: next });
+      writeStoredPeriod(session, key, next);
       notifyStoredPeriodChanged();
     },
-    [session],
+    [key, session],
   );
 
-  return { period: chosen ?? stored ?? initialPeriod, setPeriod };
+  return { period: localPeriod ?? stored ?? initialPeriod, setPeriod };
 }

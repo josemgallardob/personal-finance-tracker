@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import type { MonthKey } from "../../../shared/domain/dates";
 import type { SeriesStorage } from "./series/series-selection";
 import {
-  DASHBOARD_PERIOD_STORAGE_KEY,
+  dashboardPeriodStorageKey,
   parseStoredPeriod,
   readPeriodEntry,
   useDashboardPeriod,
@@ -36,23 +36,27 @@ function memoryStorage(initial: Record<string, string> = {}): SeriesStorage & {
 
 describe("readPeriodEntry", () => {
   it("returns the stored text, or nothing when there is no session", () => {
+    const key = dashboardPeriodStorageKey("personal");
     const storage = memoryStorage({
-      [DASHBOARD_PERIOD_STORAGE_KEY]: '{"kind":"previousMonth"}',
+      [key]: '{"kind":"previousMonth"}',
     });
 
-    expect(readPeriodEntry(storage)).toBe('{"kind":"previousMonth"}');
-    expect(readPeriodEntry(memoryStorage())).toBeNull();
-    expect(readPeriodEntry(null)).toBeNull();
+    expect(readPeriodEntry(storage, key)).toBe('{"kind":"previousMonth"}');
+    expect(readPeriodEntry(memoryStorage(), key)).toBeNull();
+    expect(readPeriodEntry(null, key)).toBeNull();
   });
 
   it("survives a session storage that refuses to be read", () => {
     expect(
-      readPeriodEntry({
-        getItem: () => {
-          throw new Error("blocked");
+      readPeriodEntry(
+        {
+          getItem: () => {
+            throw new Error("blocked");
+          },
+          setItem: () => undefined,
         },
-        setItem: () => undefined,
-      }),
+        dashboardPeriodStorageKey("personal"),
+      ),
     ).toBeNull();
   });
 });
@@ -60,25 +64,26 @@ describe("readPeriodEntry", () => {
 describe("writeStoredPeriod", () => {
   it("stores a preset and a custom range under the documented key", () => {
     const storage = memoryStorage();
+    const key = dashboardPeriodStorageKey("personal");
 
-    writeStoredPeriod(storage, { kind: "lastThreeMonths" });
-    expect(storage.entries[DASHBOARD_PERIOD_STORAGE_KEY]).toBe(
-      '{"kind":"lastThreeMonths"}',
-    );
+    writeStoredPeriod(storage, key, { kind: "lastThreeMonths" });
+    expect(storage.entries[key]).toBe('{"kind":"lastThreeMonths"}');
 
-    writeStoredPeriod(storage, {
+    writeStoredPeriod(storage, key, {
       kind: "customMonthRange",
       from: "2026-01" as MonthKey,
       to: "2026-03" as MonthKey,
     });
-    expect(storage.entries[DASHBOARD_PERIOD_STORAGE_KEY]).toBe(
+    expect(storage.entries[key]).toBe(
       '{"kind":"customMonthRange","from":"2026-01","to":"2026-03"}',
     );
   });
 
   it("keeps working when the session cannot store anything", () => {
     expect(() => {
-      writeStoredPeriod(null, { kind: "currentMonth" });
+      writeStoredPeriod(null, dashboardPeriodStorageKey("personal"), {
+        kind: "currentMonth",
+      });
       writeStoredPeriod(
         {
           getItem: () => null,
@@ -86,6 +91,7 @@ describe("writeStoredPeriod", () => {
             throw new Error("full");
           },
         },
+        dashboardPeriodStorageKey("personal"),
         { kind: "currentMonth" },
       );
     }).not.toThrow();
@@ -139,7 +145,7 @@ describe("useDashboardPeriod against the real session storage", () => {
     window.sessionStorage.clear();
 
     function Harness() {
-      const { period, setPeriod } = useDashboardPeriod();
+      const { period, setPeriod } = useDashboardPeriod({ mode: "personal" });
 
       return (
         <div>
@@ -162,13 +168,31 @@ describe("useDashboardPeriod against the real session storage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Año actual" }));
 
     expect(screen.getByTestId("period")).toHaveTextContent("currentYear");
-    expect(window.sessionStorage.getItem(DASHBOARD_PERIOD_STORAGE_KEY)).toBe(
-      '{"kind":"currentYear"}',
-    );
+    expect(
+      window.sessionStorage.getItem(dashboardPeriodStorageKey("personal")),
+    ).toBe('{"kind":"currentYear"}');
 
     unmount();
     render(<Harness />);
     expect(screen.getByTestId("period")).toHaveTextContent("currentYear");
     window.sessionStorage.clear();
+  });
+
+  it("keeps personal and demo periods in separate session entries", async () => {
+    const storage = memoryStorage({
+      [dashboardPeriodStorageKey("personal")]: '{"kind":"previousMonth"}',
+      [dashboardPeriodStorageKey("demo")]: '{"kind":"currentYear"}',
+    });
+
+    function Harness({ mode }: { readonly mode: string }) {
+      const { period } = useDashboardPeriod({ mode, storage });
+      return <p data-testid="period">{period.kind}</p>;
+    }
+
+    const { rerender } = render(<Harness mode="personal" />);
+    expect(screen.getByTestId("period")).toHaveTextContent("previousMonth");
+
+    rerender(<Harness mode="demo" />);
+    expect(screen.getByTestId("period")).toHaveTextContent("currentYear");
   });
 });

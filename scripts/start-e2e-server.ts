@@ -41,7 +41,7 @@ function main(): void {
     PORT: String(E2E_PORT),
   };
 
-  for (const command of ["db:migrate", "db:migrate:demo"]) {
+  for (const command of ["db:migrate", "db:migrate:demo", "db:seed:demo"]) {
     const migrated = spawnSync("npm", ["run", command], {
       cwd: repositoryRoot,
       env,

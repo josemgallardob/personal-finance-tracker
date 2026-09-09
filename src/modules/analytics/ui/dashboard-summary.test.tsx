@@ -580,7 +580,7 @@ describe("DashboardSummary period across a visit to the history", () => {
       screen.getByRole("button", { name: dashboardCopy.lastThreeMonths }),
     );
     await waitForIncome("3000,00 €");
-    expect(storage.entries["dashboard:period"]).toBe(
+    expect(storage.entries["dashboard:period:personal"]).toBe(
       '{"kind":"lastThreeMonths"}',
     );
 
@@ -600,7 +600,7 @@ describe("DashboardSummary period across a visit to the history", () => {
 
   it("restores a custom range of complete months as well", async () => {
     const storage = memoryStorage({
-      "dashboard:period":
+      "dashboard:period:personal":
         '{"kind":"customMonthRange","from":"2026-01","to":"2026-03"}',
     });
     const fetchImpl = dashboardFetch();
@@ -622,7 +622,9 @@ describe("DashboardSummary period across a visit to the history", () => {
     const fetchImpl = dashboardFetch();
     renderDashboard(
       fetchImpl,
-      memoryStorage({ "dashboard:period": '{"kind":"lastFiveYears"}' }),
+      memoryStorage({
+        "dashboard:period:personal": '{"kind":"lastFiveYears"}',
+      }),
     );
 
     await waitForIncome("2500,00 €");
