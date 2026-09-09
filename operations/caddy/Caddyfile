@@ -1,0 +1,17 @@
+# Replace every __PLACEHOLDER__ before installing this file. Caddy must run on
+# the host (or a host-network-equivalent proxy) so it can reach the loopback
+# Compose publication; it is deliberately bound only to the Tailscale address.
+https://__TAILSCALE_DNS_NAME__ {
+	bind __TAILSCALE_IPV4__
+	tls /etc/personal-finance-tracker/tailscale.crt /etc/personal-finance-tracker/tailscale.key
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+	}
+
+	reverse_proxy 127.0.0.1:__APP_PORT__
+}

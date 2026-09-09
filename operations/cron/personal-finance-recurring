@@ -1,0 +1,6 @@
+# Install for the dedicated deployment account with `crontab
+# operations/cron/personal-finance-recurring` after replacing __APP_DIRECTORY__.
+# Docker Compose loads the same .env and named volumes as the application.
+# Do not add --service-ports: the job must not bind a host port.
+PATH=/usr/local/bin:/usr/bin:/bin
+17 3 * * * cd __APP_DIRECTORY__ && docker compose run --rm --no-deps --entrypoint npm app run recurring:run

@@ -88,7 +88,9 @@ npm run start:server
 
 Remote access over the private VPN, the daily scheduler and encrypted backups
 are operated outside this repository and are documented with the operations
-tasks that own them.
+tasks that own them. The [private Tailscale operations
+runbook](operations/README.md) provides installation templates and the required
+owner-observed smoke evidence for HTTPS access and recurrence scheduling.
 
 ## Local development
 
