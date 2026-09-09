@@ -239,6 +239,20 @@ describe("RecurringList", () => {
     expect(within(incomes).getByText(recurringCopy.noTags)).toBeVisible();
   });
 
+  it("names the whole list so a screen reader can reach it as one region", async () => {
+    renderList(stubFetch({ rules: [[expenseRule, incomeRule]] }));
+
+    const list = await screen.findByRole("region", {
+      name: recurringCopy.listLabel,
+    });
+    expect(
+      within(list).getByRole("region", { name: recurringCopy.expensesGroup }),
+    ).toBeVisible();
+    expect(
+      within(list).getByRole("region", { name: recurringCopy.incomesGroup }),
+    ).toBeVisible();
+  });
+
   it("hides an empty group instead of showing a header with nothing under it", async () => {
     renderList(stubFetch({ rules: [[expenseRule]] }));
 

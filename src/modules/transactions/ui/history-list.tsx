@@ -55,9 +55,16 @@ import {
 } from "./use-history-pages";
 
 const HISTORY_CATALOGS_KEY = "transactions:history:catalogs";
-const DESKTOP_HISTORY_QUERY = "(min-width: 640px)";
+const DESKTOP_HISTORY_QUERY = "(min-width: 1024px)";
 
-/** True from the `sm` breakpoint, where the compact table replaces stacked rows. */
+/**
+ * True from the `lg` breakpoint, where the compact table replaces stacked rows.
+ *
+ * The table needs more room than the six columns suggest: the shell already
+ * spends 208 px on its side navigation, so below this width the table would
+ * push the whole page into a horizontal scroll — exactly what a reader at
+ * 200 % zoom sees. Stacked rows carry the same data in one column instead.
+ */
 export function useDesktopHistoryLayout(): boolean {
   const [isDesktop, setIsDesktop] = useState(() => readDesktopHistoryLayout());
 

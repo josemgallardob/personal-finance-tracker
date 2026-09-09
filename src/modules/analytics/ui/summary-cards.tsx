@@ -42,7 +42,7 @@ export function SummaryCards({ drillDowns, totals }: SummaryCardsProps) {
   return (
     <ul
       aria-label={dashboardCopy.summaryLabel}
-      className="grid w-full max-w-full min-w-0 grid-cols-1 gap-4 sm:grid-cols-3"
+      className="grid w-full max-w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-3"
     >
       <SummaryCard
         amount={summaryAmount(current.incomeMinor)}
