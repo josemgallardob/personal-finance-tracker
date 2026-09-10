@@ -25,6 +25,11 @@ blob-report
 playwright/.cache
 docs
 tests
+!tests/
+tests/*
+!tests/e2e/
+tests/e2e/*
+!tests/e2e/origin.ts
 README.md
 AGENTS.md
 CLAUDE.md
