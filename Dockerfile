@@ -14,6 +14,9 @@ ENV CI=true \
     NEXT_TELEMETRY_DISABLED=1 \
     NPM_CONFIG_FUND=false \
     NPM_CONFIG_UPDATE_NOTIFIER=false
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit
 
@@ -24,7 +27,7 @@ ENV CI=true \
     NODE_ENV=production
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-# The build runs without DATABASE_PATH or DEMO_DATABASE_PATH on purpose: it
+# The build runs without DATABASE_PATH on purpose: it
 # must not open, create or read any SQLite file.
 RUN npm run build
 
@@ -36,8 +39,7 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
     ALLOW_NON_LOOPBACK_BIND=true \
-    DATABASE_PATH=/data/personal/personal-finance.db \
-    DEMO_DATABASE_PATH=/data/demo/personal-finance-demo.db
+    DATABASE_PATH=/data/personal/personal-finance.db
 
 # HOST binds every interface of the private container network namespace only.
 # Compose publishes the port on the host loopback address, so the service is
@@ -50,10 +52,9 @@ COPY db ./db
 COPY src ./src
 COPY scripts ./scripts
 
-# Separate durable directories for the personal and the demonstration files.
-# A named volume mounted on an existing directory inherits this ownership, so
-# the unprivileged runtime user can write after a fresh `compose up`.
-RUN mkdir -p /data/personal /data/demo \
+# A named volume mounted on the data directory inherits this ownership, so the
+# unprivileged runtime user can write after a fresh `compose up`.
+RUN mkdir -p /data/personal \
     && chown -R node:node /data /app/.next
 
 USER node

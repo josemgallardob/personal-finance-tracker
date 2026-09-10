@@ -51,9 +51,9 @@ const qualityJob = job("quality");
 const e2eJob = job("e2e");
 
 describe("continuous-integration triggers", () => {
-  it("publishes the check on pull requests against main and stable", () => {
+  it("publishes the check on pull requests against main, stable and release branches", () => {
     expect(workflow).toMatch(
-      /on:\n {2}pull_request:\n {4}branches:\n {6}- main\n {6}- stable\n/,
+      /on:\n {2}pull_request:\n {4}branches:\n {6}- main\n {6}- stable\n {6}- "release\/\*\*"\n/,
     );
   });
 

@@ -78,6 +78,25 @@ select {
   color: var(--color-text);
 }
 
+.transaction-date-input {
+  padding-right: 0.75rem;
+  padding-left: 3rem;
+}
+
+.transaction-date-input::-webkit-date-and-time-value {
+  text-align: center;
+}
+
+.transaction-date-input::-webkit-datetime-edit {
+  width: 100%;
+  text-align: center;
+}
+
+.transaction-date-input::-webkit-datetime-edit-fields-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

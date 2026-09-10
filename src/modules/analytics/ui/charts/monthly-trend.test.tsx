@@ -1,11 +1,10 @@
 /**
  * Monthly evolution section.
  *
- * The suite pins that the series states its own window and its independence
- * from the period selector, that every figure of the chart is also a row of a
- * table with its history link, that a month without movements is a zero and not
- * a hole, and that a workspace without movements shows an empty state instead
- * of a drawing.
+ * The suite pins that the series states its own window, that income, expense
+ * and net balance are also rows of an accessible table with history links,
+ * that a month without movements is a zero and not a hole, and that a workspace
+ * without movements shows an empty state instead of a drawing.
  */
 
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -48,14 +47,16 @@ const NO_WINDOW = {
 };
 
 describe("MonthlyTrend", () => {
-  it("states the window of the series and that the period does not change it", () => {
+  it("states the window without explaining the period selector", () => {
     render(<MonthlyTrend evolution={evolution} />);
 
     expect(screen.getByText("07/2026–09/2026 · 3 meses")).toBeVisible();
-    expect(screen.getByText(dashboardCopy.trendIndependent)).toBeVisible();
+    expect(
+      screen.queryByText(/no depende del periodo/i),
+    ).not.toBeInTheDocument();
   });
 
-  it("publishes every month of the series as a row with both figures", () => {
+  it("publishes every month with income, expense and net balance", () => {
     render(<MonthlyTrend evolution={evolution} />);
 
     const table = screen.getByRole("table", {
@@ -70,7 +71,16 @@ describe("MonthlyTrend", () => {
       within(august as HTMLElement)
         .getAllByRole("cell")
         .map((cell) => withPlainSpaces(cell.textContent)),
-    ).toEqual(["0,00 €", "0,00 €"]);
+    ).toEqual(["0,00 €", "0,00 €", "0,00 €"]);
+
+    const september = within(table)
+      .getByRole("rowheader", { name: "09/2026" })
+      .closest("tr");
+    expect(
+      within(september as HTMLElement)
+        .getAllByRole("cell")
+        .map((cell) => withPlainSpaces(cell.textContent)),
+    ).toEqual(["2500,00 €", "1200,50 €", "+1299,50 €"]);
   });
 
   it("opens the history of the month from its own row", () => {

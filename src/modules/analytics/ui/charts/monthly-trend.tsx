@@ -16,9 +16,11 @@
 
 import Link from "next/link";
 
+import { cx } from "../../../../shared/ui/class-names";
 import { EmptyState } from "../../../../shared/ui/empty-state";
 import type { MonthlyEvolutionDto } from "../../contracts/evolution";
 import { dashboardCopy } from "../dashboard-copy";
+import { netTone, summaryToneClassName } from "../summary-presentation";
 import { ChartFigure } from "./chart-figure";
 import { monthlyTrendPoints, monthlyTrendWindowLabel } from "./chart-series";
 import { LazyMonthlyTrendVisual } from "./lazy-visuals";
@@ -45,9 +47,6 @@ export function MonthlyTrend({ evolution }: MonthlyTrendProps) {
       >
         {dashboardCopy.trendTitle}
       </h2>
-      <p className="text-body-sm text-text-muted">
-        {dashboardCopy.trendIndependent}
-      </p>
       {evolution.kind === "empty" ? (
         <EmptyState
           description={dashboardCopy.trendEmptyDescription}
@@ -77,6 +76,9 @@ export function MonthlyTrend({ evolution }: MonthlyTrendProps) {
                   <th className="px-3 py-2 text-right font-medium" scope="col">
                     {dashboardCopy.expense}
                   </th>
+                  <th className="px-3 py-2 text-right font-medium" scope="col">
+                    {dashboardCopy.net}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -105,6 +107,14 @@ export function MonthlyTrend({ evolution }: MonthlyTrendProps) {
                     </td>
                     <td className="text-body-sm text-expense px-3 py-3 text-right tabular-nums">
                       {point.expenseLabel}
+                    </td>
+                    <td
+                      className={cx(
+                        "text-body-sm px-3 py-3 text-right tabular-nums",
+                        summaryToneClassName(netTone(point.netMinor)),
+                      )}
+                    >
+                      {point.netLabel}
                     </td>
                   </tr>
                 ))}

@@ -77,7 +77,6 @@ interface BenchmarkResult {
 function validEnvironment(databasePath: string): Record<string, string> {
   return {
     DATABASE_PATH: databasePath,
-    DEMO_DATABASE_PATH: `${databasePath}.demo`,
     APP_URL: "http://127.0.0.1:3000",
     TZ: "Europe/Madrid",
   };

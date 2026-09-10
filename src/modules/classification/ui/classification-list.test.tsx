@@ -33,27 +33,12 @@ import {
 } from "./classification-copy";
 import { archiveDialogCopy } from "./archive-dialog";
 import { classificationFormCopy } from "./classification-form";
-import { moveDownLabel, moveUpLabel, orderControlsCopy } from "./order-model";
 
 const REQUEST_ID = "req-classification";
 
 const expenseCategory = {
   id: "seed-exp-alquiler",
   name: "Alquiler",
-  type: "expense" as const,
-  isArchived: false,
-};
-
-const supermarketCategory = {
-  id: "seed-exp-supermercado",
-  name: "Supermercado",
-  type: "expense" as const,
-  isArchived: false,
-};
-
-const carCategory = {
-  id: "seed-exp-coche",
-  name: "Coche",
   type: "expense" as const,
   isArchived: false,
 };
@@ -138,17 +123,6 @@ function categoriesRegion() {
 
 function tagsRegion() {
   return screen.getByRole("region", { name: classificationCopy.tagsTitle });
-}
-
-function expenseRowNames(): string[] {
-  return within(
-    screen.getByRole("list", { name: classificationCopy.expenseTitle }),
-  )
-    .getAllByRole("listitem")
-    .map((item) => {
-      const rename = within(item).getByRole("button", { name: /Renombrar / });
-      return rename.getAttribute("aria-label")!.replace("Renombrar ", "");
-    });
 }
 
 describe("groupCategoriesByType", () => {
@@ -635,222 +609,38 @@ describe("ClassificationList", () => {
     });
   });
 
-  it("moves first, middle and last active categories and keeps archived rows last", async () => {
-    const user = userEvent.setup();
-    let categories = [
-      expenseCategory,
-      supermarketCategory,
-      carCategory,
-      archivedExpenseCategory,
-      incomeCategory,
-    ];
-    const fetchImpl = vi.fn<FetchLike>((input, init) => {
-      const method = init?.method ?? "GET";
+  it("keeps long category and tag names readable without reorder controls", async () => {
+    const longCategory = {
+      ...expenseCategory,
+      name: "Suscripciones y suministros del hogar",
+    };
+    const longTag = {
+      ...activeTag,
+      name: "Compras compartidas para las vacaciones",
+    };
 
-      if (input.startsWith("/api/tags")) {
-        return Promise.resolve(dataResponse([activeTag]));
-      }
-
-      if (method === "PUT" && input === "/api/categories/order") {
-        const body = JSON.parse(String(init?.body)) as {
-          type: string;
-          orderedCategoryIds: string[];
-        };
-        expect(body.type).toBe("expense");
-        const byId = new Map(categories.map((item) => [item.id, item]));
-        const nextActive = body.orderedCategoryIds.map((id) => {
-          const item = byId.get(id);
-          expect(item?.isArchived).toBe(false);
-          expect(item?.type).toBe("expense");
-          return item!;
-        });
-        categories = [...nextActive, archivedExpenseCategory, incomeCategory];
-        return Promise.resolve(dataResponse(categories));
-      }
-
-      return Promise.resolve(dataResponse(categories));
-    });
-
-    renderList(fetchImpl);
-    await screen.findByText("Alquiler");
-
-    expect(
-      screen.getByRole("button", { name: moveUpLabel("Alquiler") }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: moveDownLabel("Coche") }),
-    ).toBeDisabled();
-    expect(
-      screen.queryByRole("button", { name: moveDownLabel("Tabaco") }),
-    ).not.toBeInTheDocument();
-
-    await user.click(
-      screen.getByRole("button", { name: moveDownLabel("Alquiler") }),
-    );
-    await waitFor(() => {
-      expect(expenseRowNames()).toEqual([
-        "Supermercado",
-        "Alquiler",
-        "Coche",
-        "Tabaco",
-      ]);
-      expect(
-        screen.getByRole("button", { name: moveUpLabel("Alquiler") }),
-      ).toBeEnabled();
-    });
-
-    await user.click(
-      screen.getByRole("button", { name: moveUpLabel("Coche") }),
-    );
-    await waitFor(() => {
-      expect(expenseRowNames()).toEqual([
-        "Supermercado",
-        "Coche",
-        "Alquiler",
-        "Tabaco",
-      ]);
-      expect(
-        screen.getByRole("button", { name: moveDownLabel("Coche") }),
-      ).toBeEnabled();
-    });
-
-    await user.click(
-      screen.getByRole("button", { name: moveDownLabel("Supermercado") }),
-    );
-    await waitFor(() => {
-      expect(expenseRowNames()).toEqual([
-        "Coche",
-        "Supermercado",
-        "Alquiler",
-        "Tabaco",
-      ]);
-    });
-
-    const putBodies = fetchImpl.mock.calls
-      .filter((call) => call[1]?.method === "PUT")
-      .map((call) => JSON.parse(String(call[1]?.body)));
-    expect(putBodies).toEqual([
-      {
-        type: "expense",
-        orderedCategoryIds: [
-          supermarketCategory.id,
-          expenseCategory.id,
-          carCategory.id,
-        ],
-      },
-      {
-        type: "expense",
-        orderedCategoryIds: [
-          supermarketCategory.id,
-          carCategory.id,
-          expenseCategory.id,
-        ],
-      },
-      {
-        type: "expense",
-        orderedCategoryIds: [
-          carCategory.id,
-          supermarketCategory.id,
-          expenseCategory.id,
-        ],
-      },
-    ]);
-  }, 15_000);
-
-  it("applies an optimistic order, disables controls while pending and rolls back on save failure", async () => {
-    const user = userEvent.setup();
-    let release!: (response: Response) => void;
-    let putCount = 0;
-    let categories = [
-      expenseCategory,
-      supermarketCategory,
-      archivedExpenseCategory,
-    ];
-    const fetchImpl = vi.fn<FetchLike>((input, init) => {
-      const method = init?.method ?? "GET";
-
-      if (input.startsWith("/api/tags")) {
-        return Promise.resolve(dataResponse([activeTag]));
-      }
-
-      if (method === "PUT" && input === "/api/categories/order") {
-        putCount += 1;
-        if (putCount === 1) {
-          return new Promise<Response>((resolve) => {
-            release = resolve;
-          });
-        }
-
-        categories = [
-          supermarketCategory,
-          expenseCategory,
-          archivedExpenseCategory,
-        ];
-        return Promise.resolve(dataResponse(categories));
-      }
-
-      return Promise.resolve(dataResponse(categories));
-    });
-
-    renderList(fetchImpl);
-    await screen.findByText("Alquiler");
-
-    await user.click(
-      screen.getByRole("button", { name: moveDownLabel("Alquiler") }),
-    );
-
-    expect(expenseRowNames()).toEqual(["Supermercado", "Alquiler", "Tabaco"]);
-    expect(
-      screen.getByRole("button", { name: moveUpLabel("Alquiler") }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: moveDownLabel("Alquiler") }),
-    ).toBeDisabled();
-
-    release(
-      errorResponse(
-        500,
-        "internalError",
-        "Se ha producido un error inesperado.",
-      ),
-    );
-
-    expect(await screen.findByText(orderControlsCopy.saveFailed)).toBeVisible();
-    expect(expenseRowNames()).toEqual(["Alquiler", "Supermercado", "Tabaco"]);
-
-    await user.click(
-      screen.getByRole("button", { name: orderControlsCopy.retry }),
-    );
-    await waitFor(() => {
-      expect(expenseRowNames()).toEqual(["Supermercado", "Alquiler", "Tabaco"]);
-    });
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  });
-
-  it("reaches order controls from the keyboard", async () => {
-    const user = userEvent.setup();
     renderList(
       routedFetch({
-        categories: [
-          () => dataResponse([expenseCategory, supermarketCategory]),
-        ],
-        tags: [() => dataResponse([])],
+        categories: [() => dataResponse([longCategory])],
+        tags: [() => dataResponse([longTag])],
       }),
     );
 
-    await screen.findByText("Alquiler");
-    await user.tab();
+    const categoryName = await screen.findByText(longCategory.name);
+    const tagName = screen.getByText(longTag.name);
+
+    expect(categoryName).toBeVisible();
+    expect(categoryName.closest("li")).toHaveClass("w-full", "flex-col");
+    expect(tagName).toBeVisible();
+    expect(tagName.closest("li")).toHaveClass("w-full", "flex-col");
     expect(
-      screen.getByRole("button", { name: classificationCopy.createCategory }),
-    ).toHaveFocus();
-    await user.tab();
+      screen.queryByRole("button", { name: /^(Subir|Bajar) / }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: moveDownLabel("Alquiler") }),
-    ).toHaveFocus();
-    await user.tab();
-    expect(
-      screen.getByRole("button", { name: renameCategoryLabel("Alquiler") }),
-    ).toHaveFocus();
+      screen.getByRole("button", {
+        name: renameCategoryLabel(longCategory.name),
+      }),
+    ).toBeVisible();
   });
 
   it("cancels archive without calling the API and keeps the active row", async () => {

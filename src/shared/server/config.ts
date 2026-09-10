@@ -4,8 +4,7 @@
  * Values are read only when {@link loadAppConfig} is called, so importing this
  * module during `next build` does not require a live environment or a database
  * file. The application keeps one configured on-disk SQLite file for personal
- * data and one for the isolated demonstration; in-memory databases are
- * rejected because they cannot persist.
+ * data; in-memory databases are rejected because they cannot persist.
  */
 
 import "server-only";
@@ -16,9 +15,6 @@ import { APPLICATION_TIME_ZONE } from "../domain/clock";
 
 /** Environment variable that points at the persistent SQLite file. */
 export const DATABASE_PATH_ENV = "DATABASE_PATH";
-
-/** Environment variable that points at the isolated demonstration SQLite file. */
-export const DEMO_DATABASE_PATH_ENV = "DEMO_DATABASE_PATH";
 
 /** Environment variable that holds the private application origin. */
 export const APP_URL_ENV = "APP_URL";
@@ -32,14 +28,13 @@ export type AppConfigErrorCode =
 
 /** Rejected configuration field and the reason why it was rejected. */
 export interface AppConfigError {
-  readonly field: "databasePath" | "demoDatabasePath" | "appUrl" | "timeZone";
+  readonly field: "databasePath" | "appUrl" | "timeZone";
   readonly code: AppConfigErrorCode;
 }
 
 /** Accepted process configuration. */
 export interface AppConfig {
   readonly databasePath: string;
-  readonly demoDatabasePath: string;
   readonly appUrl: string;
   readonly timeZone: typeof APPLICATION_TIME_ZONE;
 }
@@ -71,21 +66,10 @@ export function loadAppConfig(
     "databasePath",
     errors,
   );
-  const demoDatabasePath = readDatabasePath(
-    source,
-    DEMO_DATABASE_PATH_ENV,
-    "demoDatabasePath",
-    errors,
-  );
   const appUrl = readAppUrl(source, errors);
   const timeZone = readTimeZone(source, errors);
 
-  if (
-    errors.length > 0 ||
-    databasePath === null ||
-    demoDatabasePath === null ||
-    appUrl === null
-  ) {
+  if (errors.length > 0 || databasePath === null || appUrl === null) {
     return { ok: false, errors };
   }
 
@@ -93,7 +77,6 @@ export function loadAppConfig(
     ok: true,
     value: {
       databasePath,
-      demoDatabasePath,
       appUrl,
       timeZone,
     },
@@ -103,7 +86,7 @@ export function loadAppConfig(
 function readDatabasePath(
   source: EnvSource,
   environmentName: string,
-  field: "databasePath" | "demoDatabasePath",
+  field: "databasePath",
   errors: AppConfigError[],
 ): string | null {
   const raw = source[environmentName];
