@@ -11,7 +11,6 @@ export const preferences = {
   locale: "es-ES",
   currency: "EUR",
   timeZone: "Europe/Madrid",
-  mode: "personal",
   today,
 };
 

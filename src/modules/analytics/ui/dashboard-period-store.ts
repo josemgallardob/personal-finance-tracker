@@ -9,11 +9,6 @@
  * read the movements behind a figure and coming back must return the owner to
  * the period they were reading, not to the default one.
  *
- * A period is a calendar choice — a preset, or two natural months — but it
- * still belongs to the database that supplied the dashboard. Its storage key
- * therefore includes the server-validated application mode, so a demo choice
- * cannot shape the returning personal dashboard.
- *
  * A stored value that is not a documented period is ignored instead of being
  * repaired, so a corrupted entry costs the owner one selection and never an
  * unreadable dashboard. The last choice is also kept in the component, so a
@@ -32,12 +27,12 @@ import {
 } from "../domain/periods";
 import { DEFAULT_DASHBOARD_PERIOD } from "./dashboard-period";
 
-/** Prefix of the mode-scoped key used for the selected dashboard period. */
+/** Key used for the selected dashboard period. */
 export const DASHBOARD_PERIOD_STORAGE_PREFIX = "dashboard:period";
 
-/** Builds the storage key for one server-validated application mode. */
-export function dashboardPeriodStorageKey(mode: string): string {
-  return `${DASHBOARD_PERIOD_STORAGE_PREFIX}:${mode}`;
+/** Builds the stable personal-dashboard storage key. */
+export function dashboardPeriodStorageKey(): string {
+  return `${DASHBOARD_PERIOD_STORAGE_PREFIX}:personal`;
 }
 
 const listeners = new Set<() => void>();
@@ -162,8 +157,6 @@ export interface DashboardPeriodSelection {
 export interface UseDashboardPeriodOptions {
   /** Period of a session that has never chosen one. */
   readonly initialPeriod?: DashboardPeriod;
-  /** Application mode that supplied the dashboard data, unknown while loading. */
-  readonly mode?: string | null;
   /** Session storage. Tests replace this at the browser boundary. */
   readonly storage?: SeriesStorage | null;
 }
@@ -171,13 +164,12 @@ export interface UseDashboardPeriodOptions {
 /** Reads and keeps the period of the dashboard for this session. */
 export function useDashboardPeriod({
   initialPeriod = DEFAULT_DASHBOARD_PERIOD,
-  mode = null,
   storage,
 }: UseDashboardPeriodOptions = {}): DashboardPeriodSelection {
   const session = storage === undefined ? browserSessionStorage() : storage;
-  const key = mode === null ? null : dashboardPeriodStorageKey(mode);
+  const key = dashboardPeriodStorageKey();
   const readEntry = useCallback(
-    () => (key === null ? null : readPeriodEntry(session, key)),
+    () => readPeriodEntry(session, key),
     [key, session],
   );
   // The server has no session, so it always paints the default period.
@@ -192,10 +184,6 @@ export function useDashboardPeriod({
 
   const setPeriod = useCallback(
     (next: DashboardPeriod) => {
-      if (key === null) {
-        return;
-      }
-
       setChosen({ key, period: next });
       writeStoredPeriod(session, key, next);
       notifyStoredPeriodChanged();

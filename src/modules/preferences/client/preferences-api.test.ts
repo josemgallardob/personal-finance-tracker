@@ -39,7 +39,6 @@ const preferences = {
   locale: "es-ES",
   currency: "EUR",
   timeZone: "Europe/Madrid",
-  mode: "personal",
   today: "2026-09-08",
 };
 

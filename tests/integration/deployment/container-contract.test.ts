@@ -4,8 +4,8 @@
  * These assertions read the real files that the private deployment ships:
  * image definition, Compose file, build-context exclusions, entry point and
  * the environment template. They verify the properties a container runtime
- * cannot be asked about here — unprivileged runtime user, separate durable
- * volumes, loopback publication, deterministic install and credentials that
+ * cannot be asked about here — unprivileged runtime user, durable storage,
+ * loopback publication, deterministic install and credentials that
  * only ever arrive from the environment. Running an actual image build and a
  * real recreate cycle belongs to the deployment host, which has a container
  * runtime; this suite is the repository-side gate that keeps those templates
@@ -35,7 +35,6 @@ const packageJson = JSON.parse(read("package.json")) as {
 };
 
 const PERSONAL_VOLUME_PATH = "/data/personal";
-const DEMO_VOLUME_PATH = "/data/demo";
 
 describe("container image definition", () => {
   it("installs dependencies from the committed lockfile only", () => {
@@ -83,13 +82,10 @@ describe("container image definition", () => {
 
     expect(buildStage).toContain("RUN npm run build");
     expect(buildStage).not.toContain("DATABASE_PATH");
-    expect(buildStage).not.toContain("DEMO_DATABASE_PATH");
   });
 
-  it("runs as an unprivileged user that owns both data directories", () => {
-    expect(dockerfile).toContain(
-      `RUN mkdir -p ${PERSONAL_VOLUME_PATH} ${DEMO_VOLUME_PATH}`,
-    );
+  it("runs as an unprivileged user that owns its data directory", () => {
+    expect(dockerfile).toContain(`RUN mkdir -p ${PERSONAL_VOLUME_PATH}`);
     expect(dockerfile).toContain("chown -R node:node /data /app/.next");
 
     const userIndex = dockerfile.indexOf("\nUSER node");
@@ -100,12 +96,9 @@ describe("container image definition", () => {
     expect(dockerfile).not.toMatch(/^USER root/m);
   });
 
-  it("keeps the personal and demonstration files on separate volumes", () => {
+  it("pins the private database to its durable directory", () => {
     expect(dockerfile).toContain(
       `DATABASE_PATH=${PERSONAL_VOLUME_PATH}/personal-finance.db`,
-    );
-    expect(dockerfile).toContain(
-      `DEMO_DATABASE_PATH=${DEMO_VOLUME_PATH}/personal-finance-demo.db`,
     );
   });
 
@@ -178,18 +171,14 @@ describe("compose deployment", () => {
     expect(compose).not.toContain("privileged");
   });
 
-  it("mounts one durable volume per database", () => {
+  it("mounts one durable volume for the private database", () => {
     expect(compose).toContain(`- personal-data:${PERSONAL_VOLUME_PATH}`);
-    expect(compose).toContain(`- demo-data:${DEMO_VOLUME_PATH}`);
-    expect(compose).toMatch(/^volumes:\n {2}personal-data:\n {2}demo-data:$/m);
+    expect(compose).toMatch(/^volumes:\n {2}personal-data:$/m);
   });
 
   it("pins the container database paths to those volumes", () => {
     expect(compose).toContain(
       `DATABASE_PATH: ${PERSONAL_VOLUME_PATH}/personal-finance.db`,
-    );
-    expect(compose).toContain(
-      `DEMO_DATABASE_PATH: ${DEMO_VOLUME_PATH}/personal-finance-demo.db`,
     );
   });
 
@@ -224,7 +213,6 @@ describe("entry point and environment template", () => {
   it("documents every required variable without a real secret", () => {
     for (const variable of [
       "DATABASE_PATH",
-      "DEMO_DATABASE_PATH",
       "APP_URL",
       "TZ",
       "HOST",
@@ -236,7 +224,6 @@ describe("entry point and environment template", () => {
 
     expect(envExample).toMatch(/^HOST=127\.0\.0\.1$/m);
     expect(envExample).toMatch(/^DATABASE_PATH=\.\//m);
-    expect(envExample).toMatch(/^DEMO_DATABASE_PATH=\.\//m);
   });
 
   it("keeps the local development commands on loopback", () => {

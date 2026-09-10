@@ -6,25 +6,17 @@ const preferences = {
   locale: "es-ES",
   currency: "EUR",
   timeZone: "Europe/Madrid",
-  mode: "personal",
   today: "2026-09-08",
 };
 
 describe("preferences HTTP contract", () => {
-  it("accepts the documented personal and demo configurations", () => {
+  it("accepts the documented private configuration", () => {
     expect(preferencesDtoSchema.parse(preferences)).toEqual(preferences);
-    expect(
-      preferencesDtoSchema.parse({ ...preferences, mode: "demo" }),
-    ).toEqual({ ...preferences, mode: "demo" });
   });
 
-  it("refuses another locale, mode, a leaked workspace or an invalid day", () => {
+  it("refuses another locale, a leaked workspace or an invalid day", () => {
     expect(
       preferencesDtoSchema.safeParse({ ...preferences, locale: "en-GB" })
-        .success,
-    ).toBe(false);
-    expect(
-      preferencesDtoSchema.safeParse({ ...preferences, mode: "unknown" })
         .success,
     ).toBe(false);
     expect(

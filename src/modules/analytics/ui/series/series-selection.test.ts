@@ -2,7 +2,7 @@
  * Selection model of the drawn series.
  *
  * The suite pins the rules the selectors are built on: only identifiers are
- * stored, each application mode owns its own entry, a session that never
+ * stored, each dimension owns its own entry, a session that never
  * touched a selector follows the catalog and leaves archived classifications
  * out, and a stored decision survives unchanged. A storage that cannot be read
  * or written costs the selection its persistence and nothing else.
@@ -43,16 +43,11 @@ const options = [
 ];
 
 describe("seriesStorageKey", () => {
-  it("keeps every dimension and every mode in its own entry", () => {
-    expect(seriesStorageKey("categories", "personal")).toBe(
+  it("keeps every dimension in its own private entry", () => {
+    expect(seriesStorageKey("categories")).toBe(
       "dashboard:series:categories:personal",
     );
-    expect(seriesStorageKey("tags", "personal")).not.toBe(
-      seriesStorageKey("categories", "personal"),
-    );
-    expect(seriesStorageKey("tags", "demo")).not.toBe(
-      seriesStorageKey("tags", "personal"),
-    );
+    expect(seriesStorageKey("tags")).not.toBe(seriesStorageKey("categories"));
   });
 });
 

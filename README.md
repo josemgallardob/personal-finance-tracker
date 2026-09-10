@@ -66,17 +66,17 @@ What the templates guarantee:
 
 - one unprivileged runtime user (`node`), no capabilities and no privilege
   escalation;
-- one durable volume for the personal database and a separate one for the
-  isolated demonstration database, so recreating the container keeps both;
+- one durable volume for the private personal database, so recreating the
+  container keeps its data;
 - the port is published on `127.0.0.1` only, so remote access depends on the
   private VPN or a local reverse proxy, never on this file;
 - the image build never opens SQLite; migrations run at container start.
 
 Every start runs the same ordered sequence before the server accepts requests:
-migrate and bootstrap the personal database, migrate the demonstration
-database, catch up the missed monthly due dates, then serve. A failed step
+migrate and bootstrap the personal database, catch up the missed monthly due
+dates, then serve. A failed step
 exits non-zero and the container never serves a half-migrated database.
-`docker compose down` stops the container and keeps both volumes;
+`docker compose down` stops the container and keeps the data volume;
 `docker compose up -d` recreates it with the same data.
 
 The same sequence runs locally against the built application:

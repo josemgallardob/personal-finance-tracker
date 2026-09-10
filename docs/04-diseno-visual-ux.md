@@ -216,7 +216,6 @@ Paleta semántica adaptada de la referencia:
 - Categorías respetan su nombre establecido; en UI se normalizarán tildes y
   capitalización, por ejemplo “Suscripciones” y “Planes de ocio”.
 - Un estado vacío explica cómo añadir el primer movimiento.
-- Los mocks se marcan como “Datos de demostración” y ofrecen empezar de cero.
 
 ## Accesibilidad y responsive
 

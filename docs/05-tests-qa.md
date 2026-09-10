@@ -138,16 +138,15 @@ foráneas y WAL que producción:
 
 ## End-to-end
 
-1. Abrir los datos de demostración y entender el dashboard.
-2. Empezar de cero y crear un gasto con los cuatro campos obligatorios.
-3. Crear un ingreso y comprobar ingresos, gastos y balance.
-4. Editar importe, fecha, categoría y tags; verificar el recálculo.
-5. Duplicar un movimiento, modificarlo y confirmar que solo entonces se guarda.
-6. Cancelar y después confirmar una eliminación.
-7. Buscar y combinar filtros de periodo, tipo, categoría y dos tags.
-8. Navegar desde una barra/cifra al historial que la compone.
-9. Cargar varias páginas por scroll y comprobar que el dashboard no cambia.
-10. Acceder desde viewport móvil a través de la configuración de red privada.
+1. Empezar de cero y crear un gasto con los cuatro campos obligatorios.
+2. Crear un ingreso y comprobar ingresos, gastos y balance.
+3. Editar importe, fecha, categoría y tags; verificar el recálculo.
+4. Duplicar un movimiento, modificarlo y confirmar que solo entonces se guarda.
+5. Cancelar y después confirmar una eliminación.
+6. Buscar y combinar filtros de periodo, tipo, categoría y dos tags.
+7. Navegar desde una barra/cifra al historial que la compone.
+8. Cargar varias páginas por scroll y comprobar que el dashboard no cambia.
+9. Acceder desde viewport móvil a través de la configuración de red privada.
 11. Crear, editar y desactivar una recurrencia desde su pestaña.
 12. Ejecutar dos veces el generador y comprobar que solo crea un movimiento.
 13. Comparar las cuatro medias con un histórico conocido de más de 12 meses.

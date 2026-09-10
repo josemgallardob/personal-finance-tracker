@@ -1,15 +1,13 @@
 /**
  * Durable startup sequence against real SQLite files.
  *
- * The deployment contract is exercised end to end: both databases are migrated
- * and bootstrapped before the server would start, recreating the process keeps
- * the rows of each file, the personal and demonstration files never share
- * storage, and a database that cannot be migrated stops the sequence so the
- * deployment never serves a half-migrated schema.
+ * The deployment contract is exercised end to end: the private database is
+ * migrated and bootstrapped before the server would start, recreating the
+ * process keeps its rows, and a database that cannot be migrated stops the
+ * sequence so the deployment never serves a half-migrated schema.
  */
 
 import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { EnvSource } from "../../../src/shared/server/config";
@@ -111,19 +109,17 @@ describe("private deployment startup sequence", () => {
 
     expect(prepared.value.steps.map((step) => step.step)).toEqual([
       "migratePersonal",
-      "migrateDemo",
       "recurringCatchUp",
     ]);
     expect(prepared.value.steps[0]?.createdWorkspace).toBe(true);
     expect(prepared.value.steps[0]?.applied).toBeGreaterThan(0);
-    expect(prepared.value.steps[2]?.generated).toBe(0);
+    expect(prepared.value.steps[1]?.generated).toBe(0);
     expect(prepared.value.binding).toEqual({
       host: "127.0.0.1",
       port: 3000,
       loopback: true,
     });
     expect(existsSync(String(env.DATABASE_PATH))).toBe(true);
-    expect(existsSync(String(env.DEMO_DATABASE_PATH))).toBe(true);
     expect(lines.at(-1)).toContain('"outcome":"ready"');
   });
 
@@ -135,21 +131,17 @@ describe("private deployment startup sequence", () => {
 
     for (const line of lines) {
       expect(line).not.toContain(String(env.DATABASE_PATH));
-      expect(line).not.toContain(String(env.DEMO_DATABASE_PATH));
     }
   });
 
-  it("keeps the rows of both databases when the process is recreated", () => {
+  it("keeps the private rows when the process is recreated", () => {
     const env = temporaryEnv();
     const personalPath = String(env.DATABASE_PATH);
-    const demoPath = String(env.DEMO_DATABASE_PATH);
 
     expect(prepareServer({ env, logger: () => {} }).ok).toBe(true);
 
     const personalWorkspace = readWorkspaceId(personalPath);
-    const demoWorkspace = readWorkspaceId(demoPath);
     storeTag(personalPath, personalWorkspace, "personal-marker");
-    storeTag(demoPath, demoWorkspace, "demo-marker");
 
     const restarted = prepareServer({ env, logger: () => {} });
 
@@ -160,12 +152,9 @@ describe("private deployment startup sequence", () => {
     }
 
     expect(restarted.value.steps[0]?.createdWorkspace).toBe(false);
-    expect(restarted.value.steps[1]?.createdWorkspace).toBe(false);
     expect(restarted.value.steps[0]?.applied).toBe(0);
     expect(readWorkspaceId(personalPath)).toBe(personalWorkspace);
-    expect(readWorkspaceId(demoPath)).toBe(demoWorkspace);
     expect(readTagNames(personalPath)).toEqual(["personal-marker"]);
-    expect(readTagNames(demoPath)).toEqual(["demo-marker"]);
   });
 
   it("refuses to serve when the personal database cannot be opened", () => {
@@ -183,7 +172,6 @@ describe("private deployment startup sequence", () => {
         reason: "invalidPath",
       },
     });
-    expect(existsSync(String(env.DEMO_DATABASE_PATH))).toBe(false);
   });
 
   it("refuses to serve when a migration fails on the personal file", () => {
@@ -200,25 +188,6 @@ describe("private deployment startup sequence", () => {
       error: {
         code: "stepFailed",
         step: "migratePersonal",
-        reason: "migrationFailed",
-      },
-    });
-  });
-
-  it("refuses to serve when the demonstration file cannot be migrated", () => {
-    const env = temporaryEnv();
-    const demoPath = String(env.DEMO_DATABASE_PATH);
-    const connection = openFile(demoPath);
-    connection.sqlite.exec('create table "workspace" (unrelated text)');
-    connection.close();
-
-    const prepared = prepareServer({ env, logger: () => {} });
-
-    expect(prepared).toEqual({
-      ok: false,
-      error: {
-        code: "stepFailed",
-        step: "migrateDemo",
         reason: "migrationFailed",
       },
     });
@@ -273,21 +242,13 @@ describe("private deployment startup sequence", () => {
       error: { code: "invalidBinding", reason: "nonLoopbackBindNotAllowed" },
     });
     expect(existsSync(String(env.DATABASE_PATH))).toBe(false);
-    expect(existsSync(String(env.DEMO_DATABASE_PATH))).toBe(false);
   });
 
   it("reads the process environment when no map is supplied", () => {
     const env = temporaryEnv();
     const restore = new Map<string, string | undefined>();
 
-    for (const name of [
-      "DATABASE_PATH",
-      "DEMO_DATABASE_PATH",
-      "APP_URL",
-      "TZ",
-      "HOST",
-      "PORT",
-    ]) {
+    for (const name of ["DATABASE_PATH", "APP_URL", "TZ", "HOST", "PORT"]) {
       restore.set(name, process.env[name]);
       const value = env[name];
 
@@ -312,24 +273,5 @@ describe("private deployment startup sequence", () => {
         }
       }
     }
-  });
-
-  it("keeps the personal and demonstration files on separate storage", () => {
-    const file = createTemporarySqliteFile();
-    cleanups.push(file);
-    const personalPath = join(file.directory, "personal", "personal.sqlite");
-    const demoPath = join(file.directory, "demo", "demo.sqlite");
-    mkdirSync(join(file.directory, "personal"));
-    mkdirSync(join(file.directory, "demo"));
-    const env = createValidAppEnv(personalPath, {
-      DEMO_DATABASE_PATH: demoPath,
-    });
-
-    expect(prepareServer({ env, logger: () => {} }).ok).toBe(true);
-
-    storeTag(personalPath, readWorkspaceId(personalPath), "only-personal");
-
-    expect(readTagNames(personalPath)).toEqual(["only-personal"]);
-    expect(readTagNames(demoPath)).toEqual([]);
   });
 });

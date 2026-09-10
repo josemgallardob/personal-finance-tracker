@@ -385,36 +385,6 @@ grupo y 60 € al gasto total. En una ventana de dos meses, la media de cada
 etiqueta es 30 € y la media de gasto total también 30 €: la suma de las medias
 por etiqueta, 60 €, no es la media total.
 
-### Datos de demostración
-
-La aplicación incluye un conjunto de datos mock, claramente identificable y
-reemplazable, que permite explorar todos los componentes del dashboard. Los datos
-de demostración no deben mezclarse accidentalmente con datos personales.
-
-El aislamiento es de almacenamiento, no solo de presentación:
-
-- la demostración vive en un archivo de base de datos propio, con el mismo
-  esquema que los datos personales;
-- la sesión del navegador decide qué conjunto se está usando mediante un valor
-  de modo acotado —personal o demostración— que el servidor valida en cada
-  petición; la sesión nunca transporta ni elige una ruta de archivo o un
-  identificador de espacio, y la interfaz muestra de forma visible cuándo se
-  trata de datos de demostración;
-- salir de la demostración devuelve a los datos personales tal como estaban: no
-  se copia ni se borra nada, y si aún no existe ningún movimiento personal se
-  empieza de cero;
-- reiniciar la demostración solo afecta al conjunto de demostración, exige una
-  confirmación explícita y se coordina con las escrituras en curso;
-- la tarea automática de recurrencias de los datos personales nunca procesa el
-  conjunto de demostración.
-
-| Evento | Antes | Después |
-| --- | --- | --- |
-| Entrar en la demostración | sesión sobre datos personales | la sesión pasa al archivo de demostración; los datos personales quedan intactos |
-| Salir de la demostración | sesión sobre la demostración | vuelve a los datos personales existentes, sin copiar ni borrar; si están vacíos, se empieza de cero |
-| Reiniciar la demostración | archivo de demostración modificado | solo ese archivo vuelve a su contenido reproducible, previa confirmación |
-| Ejecutarse la tarea de recurrencias | reglas activas en ambos conjuntos | procesa únicamente las reglas de los datos personales |
-
 ## Historias y criterios de aceptación
 
 | ID | Historia | Criterio principal de aceptación |
@@ -518,12 +488,6 @@ El aislamiento es de almacenamiento, no solo de presentación:
     atrasadas que se crearán.
 36. Si esa recuperación falla, el cambio no se aplica y el reintento no duplica
     ninguna fecha.
-37. La demostración usa un archivo de base de datos propio con el mismo esquema,
-    seleccionado por la sesión; salir conserva los datos personales y reiniciar
-    afecta solo a la demostración.
-38. La tarea automática de recurrencias de los datos personales no procesa el
-    conjunto de demostración.
-
 ## Fuera del MVP
 
 - Cuentas, saldos iniciales, patrimonio y transferencias.

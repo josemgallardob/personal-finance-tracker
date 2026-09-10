@@ -1,10 +1,15 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 
 import { dashboardCopy } from "../../src/modules/analytics/ui/dashboard-copy";
 import { classificationCopy } from "../../src/modules/classification/ui/classification-copy";
 import { classificationFormCopy } from "../../src/modules/classification/ui/classification-form";
-import { demoCopy } from "../../src/modules/preferences/ui/demo-actions";
 import { recurringCopy } from "../../src/modules/recurring/ui/recurring-copy";
 import { historyCopy } from "../../src/modules/transactions/ui/history-copy";
 import {
@@ -12,6 +17,7 @@ import {
   fillRequiredFields,
   openCreateDialog,
 } from "./helpers";
+import { e2eOrigin } from "./origin";
 
 /** Every drawing the dashboard paints once its period contains expenses. */
 const dashboardCharts = [
@@ -92,30 +98,144 @@ async function closeWithEscapeAndRestoreFocus(
   await expectVisibleFocusRing(page);
 }
 
-/**
- * Enters the demo from the keyboard.
- *
- * The audit never uses the pointer: a browser only paints the focus ring for
- * an interaction it considers keyboard-driven, so a single click earlier in
- * the flow would hide a missing ring instead of exposing it.
- */
-async function enterDemo(page: Page): Promise<void> {
+async function openDashboard(page: Page): Promise<void> {
   await page.goto("/");
-  await page.getByRole("button", { name: demoCopy.enter }).focus();
-  await page.keyboard.press("Enter");
   await expect(
-    page.getByRole("status", { name: demoCopy.banner }),
+    page.getByRole("list", { name: dashboardCopy.summaryLabel }),
   ).toBeVisible();
 }
 
-/** Demo dashboard on the previous month, the period that paints every chart. */
-async function openFullDashboard(page: Page): Promise<void> {
-  await enterDemo(page);
+async function seedDashboardData(
+  request: APIRequestContext,
+): Promise<readonly string[]> {
+  const [categoriesResponse, preferencesResponse] = await Promise.all([
+    request.get("/api/categories"),
+    request.get("/api/preferences"),
+  ]);
+  expect(categoriesResponse.ok()).toBe(true);
+  expect(preferencesResponse.ok()).toBe(true);
+  const categories = (await categoriesResponse.json()) as {
+    data: Array<{ id: string; name: string; type: "expense" | "income" }>;
+  };
+  const preferences = (await preferencesResponse.json()) as {
+    data: { today: string };
+  };
+  const expense = categories.data.find(
+    (item) => item.name === "Alquiler" && item.type === "expense",
+  );
+  const income = categories.data.find(
+    (item) => item.name === "Sueldo" && item.type === "income",
+  );
+  expect(expense).toBeDefined();
+  expect(income).toBeDefined();
+  const [year, month] = preferences.data.today.split("-").map(Number);
+  const previous = new Date(Date.UTC(year ?? 2026, (month ?? 1) - 2, 15))
+    .toISOString()
+    .slice(0, 10);
+  const historicalStart = new Date(Date.UTC(year ?? 2026, (month ?? 1) - 3, 15))
+    .toISOString()
+    .slice(0, 10);
+
+  const transactionIds: string[] = [];
+  for (const body of [
+    {
+      type: "expense",
+      amountMinor: 1_000,
+      date: historicalStart,
+      categoryId: expense?.id,
+      concept: "Inicio histórico accesible E2E",
+    },
+    {
+      type: "expense",
+      amountMinor: 4_000,
+      date: previous,
+      categoryId: expense?.id,
+      concept: "Gráfico accesible E2E",
+      tagInputs: [{ name: "Accesibilidad" }],
+    },
+    {
+      type: "income",
+      amountMinor: 10_000,
+      date: previous,
+      categoryId: income?.id,
+      concept: "Ingreso accesible E2E",
+    },
+  ]) {
+    const response = await request.post("/api/transactions", {
+      headers: { "content-type": "application/json", origin: e2eOrigin() },
+      data: body,
+    });
+    expect(response.ok()).toBe(true);
+    const created = (await response.json()) as { data: { id: string } };
+    transactionIds.push(created.data.id);
+  }
+
+  return transactionIds;
+}
+
+async function removeTransactions(
+  request: APIRequestContext,
+  transactionIds: readonly string[],
+): Promise<void> {
+  for (const transactionId of transactionIds) {
+    const response = await request.delete(
+      `/api/transactions/${transactionId}`,
+      {
+        headers: { origin: e2eOrigin() },
+      },
+    );
+    expect(response.ok()).toBe(true);
+  }
+}
+
+async function seedRecurringRule(
+  request: APIRequestContext,
+): Promise<{ readonly id: string; readonly templateVersion: number }> {
+  const categoriesResponse = await request.get("/api/categories");
+  expect(categoriesResponse.ok()).toBe(true);
+  const categories = (await categoriesResponse.json()) as {
+    data: Array<{ id: string; name: string; type: string }>;
+  };
+  const category = categories.data.find(
+    (item) => item.name === "Alquiler" && item.type === "expense",
+  );
+  const created = await request.post("/api/transactions", {
+    headers: { "content-type": "application/json", origin: e2eOrigin() },
+    data: {
+      type: "expense",
+      amountMinor: 1_250,
+      date: "2026-09-08",
+      categoryId: category?.id,
+      concept: "Regla accesible E2E",
+    },
+  });
+  expect(created.ok()).toBe(true);
+  const transaction = (await created.json()) as { data: { id: string } };
+  const activated = await request.post("/api/recurring-rules", {
+    headers: { "content-type": "application/json", origin: e2eOrigin() },
+    data: { transactionId: transaction.data.id, monthlyDay: 8 },
+  });
+  expect(activated.ok()).toBe(true);
+  return (
+    (await activated.json()) as {
+      data: { id: string; templateVersion: number };
+    }
+  ).data;
+}
+
+/** Private dashboard on the previous month, which paints every chart. */
+async function openFullDashboard(
+  page: Page,
+  request: APIRequestContext,
+): Promise<readonly string[]> {
+  const transactionIds = await seedDashboardData(request);
+  await openDashboard(page);
   await page.getByRole("button", { name: dashboardCopy.previousMonth }).focus();
   await page.keyboard.press("Enter");
   await expect(
     page.getByRole("table", { name: dashboardCopy.averageTagCaption }),
   ).toBeVisible();
+  return transactionIds;
 }
 
 async function horizontalOverflow(page: Page): Promise<number> {
@@ -165,16 +285,21 @@ async function seedHistoryRow(page: Page, concept: string): Promise<void> {
 test.describe("accessibility audit", () => {
   test("exposes equivalent tables for every dashboard chart without critical axe violations", async ({
     page,
+    request,
   }) => {
-    await openFullDashboard(page);
-    await expectNoCriticalAxeViolations(page);
-    await expectChartsHaveEquivalentTables(page);
+    const transactionIds = await openFullDashboard(page, request);
+    try {
+      await expectNoCriticalAxeViolations(page);
+      await expectChartsHaveEquivalentTables(page);
+    } finally {
+      await removeTransactions(request, transactionIds);
+    }
   });
 
   test("opens dashboard dialogs by keyboard and restores the trigger focus", async ({
     page,
   }) => {
-    await enterDemo(page);
+    await openDashboard(page);
 
     await closeWithEscapeAndRestoreFocus(
       page,
@@ -277,24 +402,39 @@ test.describe("accessibility audit", () => {
 
   test("audits recurring rule dialogs with keyboard focus restoration", async ({
     page,
+    request,
   }) => {
-    await enterDemo(page);
-    await page.goto("/transactions?tab=recurring");
-    await expect(
-      page.getByRole("region", { name: recurringCopy.listLabel }),
-    ).toBeVisible();
-    await expectNoCriticalAxeViolations(page);
+    const rule = await seedRecurringRule(request);
+    try {
+      await page.goto("/transactions?tab=recurring");
+      await expect(
+        page.getByRole("region", { name: recurringCopy.listLabel }),
+      ).toBeVisible();
+      await expectNoCriticalAxeViolations(page);
 
-    await closeWithEscapeAndRestoreFocus(
-      page,
-      page.getByRole("button", { name: /^Editar / }).first(),
-      recurringCopy.editTitle,
-    );
-    await closeWithEscapeAndRestoreFocus(
-      page,
-      page.getByRole("button", { name: /^Desactivar / }).first(),
-      recurringCopy.deactivateTitle,
-    );
+      await closeWithEscapeAndRestoreFocus(
+        page,
+        page.getByRole("button", { name: /^Editar / }).first(),
+        recurringCopy.editTitle,
+      );
+      await closeWithEscapeAndRestoreFocus(
+        page,
+        page.getByRole("button", { name: /^Desactivar / }).first(),
+        recurringCopy.deactivateTitle,
+      );
+    } finally {
+      const deactivated = await request.post(
+        `/api/recurring-rules/${rule.id}/deactivate`,
+        {
+          headers: {
+            "content-type": "application/json",
+            origin: e2eOrigin(),
+          },
+          data: { templateVersion: rule.templateVersion },
+        },
+      );
+      expect(deactivated.ok()).toBe(true);
+    }
   });
 
   test("audits category and tag dialogs without critical axe violations", async ({
@@ -322,7 +462,7 @@ test.describe("accessibility audit at 320 px", () => {
   test("keeps dashboard tables, charts, dialogs, and focus reachable at narrow width", async ({
     page,
   }) => {
-    await enterDemo(page);
+    await openDashboard(page);
     await expectNoCriticalAxeViolations(page);
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
 
@@ -372,20 +512,25 @@ test.describe("accessibility audit at 200 % zoom", () => {
 
   test("keeps every dashboard chart, table, and dialog reachable when zoomed", async ({
     page,
+    request,
   }) => {
-    await openFullDashboard(page);
-    await expectNoCriticalAxeViolations(page);
-    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
-    await expectChartsHaveEquivalentTables(page);
+    const transactionIds = await openFullDashboard(page, request);
+    try {
+      await expectNoCriticalAxeViolations(page);
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+      await expectChartsHaveEquivalentTables(page);
 
-    await closeWithEscapeAndRestoreFocus(
-      page,
-      page.getByRole("button", {
-        name: new RegExp(dashboardCopy.customMonthRange),
-      }),
-      dashboardCopy.monthRangeTitle,
-    );
-    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+      await closeWithEscapeAndRestoreFocus(
+        page,
+        page.getByRole("button", {
+          name: new RegExp(dashboardCopy.customMonthRange),
+        }),
+        dashboardCopy.monthRangeTitle,
+      );
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+    } finally {
+      await removeTransactions(request, transactionIds);
+    }
   });
 
   test("keeps movement entry and history reachable when zoomed", async ({
