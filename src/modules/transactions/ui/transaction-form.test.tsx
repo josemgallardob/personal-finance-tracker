@@ -290,7 +290,7 @@ describe("TransactionForm", () => {
     expect(screen.getByLabelText("Gasto")).toBeChecked();
     expect(screen.getByLabelText("Ingreso")).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Añadir gasto" })).toBeEnabled();
-    expect(screen.getByText(/Hoy: 08\/09\/2026/)).toBeVisible();
+    expect(screen.queryByText(/Formato dd\/mm\/aaaa/)).not.toBeInTheDocument();
   });
 
   it("requires the four fields and shows them in the accessible summary", async () => {
@@ -396,6 +396,28 @@ describe("TransactionForm", () => {
     expect(amount).toHaveFocus();
     expect(amount).toHaveAttribute("inputMode", "decimal");
     expect(amount).toHaveAttribute("aria-required", "true");
+    expect(screen.getByText(transactionFormCopy.requiredFields)).toBeVisible();
+    expect(screen.getAllByText("*")).toHaveLength(5);
+  });
+
+  it("orders the compact fields and keeps the date centered and narrow", () => {
+    renderForm();
+
+    const fields = [
+      screen.getByLabelText(/Importe/),
+      screen.getByLabelText("Concepto"),
+      screen.getByLabelText(/Categoría/),
+      screen.getByLabelText(/Fecha/),
+      screen.getByRole("combobox", { name: "Etiquetas" }),
+    ];
+
+    for (let index = 0; index < fields.length - 1; index += 1) {
+      expect(
+        fields[index].compareDocumentPosition(fields[index + 1]) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+    expect(fields[3]).toHaveClass("h-12", "max-w-64", "text-center");
   });
 
   it("can be completed with the keyboard on a compact form", async () => {
@@ -404,16 +426,16 @@ describe("TransactionForm", () => {
 
     await user.keyboard("30,00");
     await user.tab();
-    expect(screen.getByLabelText(/Fecha/)).toHaveFocus();
+    expect(screen.getByLabelText("Concepto")).toHaveFocus();
     await user.tab();
     expect(screen.getByLabelText(/Categoría/)).toHaveFocus();
     await user.selectOptions(screen.getByLabelText(/Categoría/), "cat-food");
     await user.tab();
-    expect(screen.getByLabelText("Concepto")).toHaveFocus();
-    await user.tab();
-    expect(screen.getByLabelText("Nota")).toHaveFocus();
+    expect(screen.getByLabelText(/Fecha/)).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("combobox", { name: "Etiquetas" })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByLabelText("Nota")).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: "Cancelar" })).toHaveFocus();
     await user.tab();

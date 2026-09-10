@@ -20,7 +20,6 @@ import {
   compatibleCategories,
   createTransactionFormSchema,
   defaultTransactionFormValues,
-  formatLocalDateAsSpanish,
   transactionFormCopy,
   toTransactionWriteBody,
   type TransactionFormValues,
@@ -142,9 +141,9 @@ export function TransactionForm({
           <fieldset className="min-w-0">
             <legend className="text-body-sm text-text font-semibold">
               {transactionFormCopy.typeLabel}
-              <span className="text-text-muted font-normal">
+              <span aria-hidden="true" className="text-danger">
                 {" "}
-                · obligatorio
+                *
               </span>
             </legend>
             <div
@@ -223,13 +222,11 @@ export function TransactionForm({
         />
       </Field>
       <Field
-        error={formState.errors.date?.message}
-        hint={`${transactionFormCopy.dateHint} Hoy: ${formatLocalDateAsSpanish(today)}.`}
-        id="transaction-date"
-        label={transactionFormCopy.dateLabel}
-        required
+        error={formState.errors.concept?.message}
+        id="transaction-concept"
+        label={transactionFormCopy.conceptLabel}
       >
-        <Input max={today} type="date" {...register("date")} />
+        <Input autoComplete="off" {...register("concept")} />
       </Field>
       <Controller
         control={control}
@@ -265,25 +262,16 @@ export function TransactionForm({
         )}
       />
       <Field
-        error={formState.errors.concept?.message}
-        hint={transactionFormCopy.conceptHint}
-        id="transaction-concept"
-        label={transactionFormCopy.conceptLabel}
+        error={formState.errors.date?.message}
+        id="transaction-date"
+        label={transactionFormCopy.dateLabel}
+        required
       >
-        <Input autoComplete="off" {...register("concept")} />
-      </Field>
-      <Field
-        error={formState.errors.note?.message}
-        hint={transactionFormCopy.noteHint}
-        id="transaction-note"
-        label={transactionFormCopy.noteLabel}
-      >
-        <textarea
-          aria-invalid={formState.errors.note ? true : undefined}
-          className="border-border bg-surface-raised text-text focus-visible:outline-primary-bright block min-h-24 w-full max-w-full rounded-md border px-4 py-3 text-base focus-visible:outline-2 focus-visible:outline-offset-[3px]"
-          id="transaction-note"
-          rows={3}
-          {...register("note")}
+        <Input
+          className="transaction-date-input h-12 min-h-12 max-w-64 px-3 text-center"
+          max={today}
+          type="date"
+          {...register("date")}
         />
       </Field>
       <Controller
@@ -300,6 +288,19 @@ export function TransactionForm({
           />
         )}
       />
+      <Field
+        error={formState.errors.note?.message}
+        id="transaction-note"
+        label={transactionFormCopy.noteLabel}
+      >
+        <textarea
+          aria-invalid={formState.errors.note ? true : undefined}
+          className="border-border bg-surface-raised text-text focus-visible:outline-primary-bright block min-h-24 w-full max-w-full rounded-md border px-4 py-3 text-base focus-visible:outline-2 focus-visible:outline-offset-[3px]"
+          id="transaction-note"
+          rows={3}
+          {...register("note")}
+        />
+      </Field>
       {recurringApi ? (
         <Controller
           control={control}
@@ -322,6 +323,12 @@ export function TransactionForm({
           )}
         />
       ) : null}
+      <p className="text-caption text-text-muted">
+        <span aria-hidden="true" className="text-danger">
+          *
+        </span>{" "}
+        {transactionFormCopy.requiredFields}
+      </p>
       <div className="flex w-full max-w-full flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         {onCancel ? (
           <Button
