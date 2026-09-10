@@ -26,11 +26,10 @@ Las fases indican dependencias, no fechas.
 - No añadir workflows hasta comenzar la implementación.
 - Implementar workspace implícito, preferencias, categorías y tags.
 - Cargar categorías iniciales e iconos/colores automáticos.
-- Añadir dataset mock reiniciable.
 - Preparar Docker Compose y acceso solo por red privada.
 
-**Demostración:** instalación limpia con catálogo y datos demo navegables, tanto en
-escritorio como en móvil.
+**Validación:** instalación limpia con catálogo inicial, tanto en escritorio como
+en móvil.
 
 ## Fase 2 — Registro rápido e historial
 

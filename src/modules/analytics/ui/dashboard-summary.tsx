@@ -36,7 +36,6 @@ import {
 import { Button } from "../../../shared/ui/button";
 import { LoadingState } from "../../../shared/ui/loading-state";
 import { apiFailureMessage } from "../../transactions/ui/transaction-dialog-support";
-import { createPreferencesApi } from "../../preferences/client/preferences-api";
 import { createAnalyticsApi } from "../client/analytics-api";
 import type { MonthlyAveragesDto } from "../contracts/averages";
 import type { MonthlyEvolutionDto } from "../contracts/evolution";
@@ -97,23 +96,14 @@ export function DashboardSummary({
 }: DashboardSummaryProps = {}) {
   const apiClient = useMemo(() => client ?? createApiClient(), [client]);
   const { revision, refreshEpoch } = useFinancialDataRevision();
-  const preferences = useResource({
-    requestKey: "preferences:dashboard-mode",
-    revision,
-    refreshEpoch,
-    load: (signal) =>
-      createPreferencesApi(apiClient).getPreferences({ signal }),
-  });
   const { period, setPeriod } = useDashboardPeriod({
     initialPeriod,
-    mode: preferences.data?.mode ?? null,
     storage: seriesStorage,
   });
   const snapshot = useResource({
     requestKey: dashboardPeriodRequestKey(period),
     revision,
     refreshEpoch,
-    enabled: preferences.data !== undefined,
     load: (signal) =>
       loadDashboardSnapshot(apiClient, signal, toDashboardSummaryQuery(period)),
   });
@@ -180,16 +170,13 @@ export function DashboardSummary({
       ),
     [averagesData, data],
   );
-  const mode = data?.preferences.mode ?? null;
   const categorySelection = useSeriesSelection({
     dimension: "categories",
-    mode,
     options: categoryOptions,
     storage: seriesStorage,
   });
   const tagSelection = useSeriesSelection({
     dimension: "tags",
-    mode,
     options: tagOptions,
     storage: seriesStorage,
   });

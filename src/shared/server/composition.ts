@@ -8,14 +8,13 @@
  * files call handler factories and never open a database or read a cookie.
  *
  * The connection itself follows the process rules already documented by the
- * database module: one mode-specific process connection, opened on first use,
+ * database module: one personal process connection, opened on first use,
  * never at import time and never during `next build`. Tests replace the opener
  * so each case keeps its own temporary file.
  */
 
 import "server-only";
 
-import type { ApplicationMode } from "../../modules/preferences/contracts";
 import { SystemClock, type Clock } from "../domain/clock";
 import {
   getSqliteConnection,
@@ -31,7 +30,6 @@ export interface ServerCompositionDeps {
   readonly env?: EnvSource;
   readonly openConnection?: (
     source: EnvSource,
-    mode?: ApplicationMode,
   ) => DatabaseResult<SqliteConnection>;
   readonly logger?: ApiLogger;
   readonly now?: () => number;

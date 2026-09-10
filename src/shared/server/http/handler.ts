@@ -20,8 +20,6 @@ import type { z } from "zod";
 
 import type { PersonalWorkspace } from "../../../modules/preferences/server/workspace";
 import { resolvePersonalWorkspace } from "../../../modules/preferences/server/workspace";
-import type { ApplicationMode } from "../../../modules/preferences/contracts";
-import { resolveApplicationMode } from "../../../modules/preferences/server/mode";
 import type { ApiErrorCode } from "../../contracts/api";
 import type { EnvSource } from "../config";
 import { loadAppConfig } from "../config";
@@ -61,8 +59,6 @@ export interface ApiRequestContext<TBody, TQuery> {
   /** Identifier read from the database, never from the request. */
   readonly workspaceId: string;
   readonly workspace: PersonalWorkspace;
-  /** Closed-set server-validated mode that selected this file. */
-  readonly mode: ApplicationMode;
   readonly connection: SqliteConnection;
   readonly body: TBody;
   readonly query: TQuery;
@@ -88,7 +84,6 @@ export interface ApiHandlerDeps {
   readonly env?: EnvSource;
   readonly openConnection?: (
     source: EnvSource,
-    mode?: ApplicationMode,
   ) => DatabaseResult<SqliteConnection>;
   readonly logger?: ApiLogger;
   readonly now?: () => number;
@@ -103,7 +98,6 @@ interface PipelineStages<TBody, TQuery> {
   readonly query: TQuery;
   readonly connection: SqliteConnection;
   readonly workspace: PersonalWorkspace;
-  readonly mode: ApplicationMode;
 }
 
 async function resolveStages<TBody, TQuery>(
@@ -111,10 +105,7 @@ async function resolveStages<TBody, TQuery>(
   url: URL,
   definition: ApiHandlerDefinition<TBody, TQuery, unknown>,
   env: EnvSource,
-  openConnection: (
-    source: EnvSource,
-    mode?: ApplicationMode,
-  ) => DatabaseResult<SqliteConnection>,
+  openConnection: (source: EnvSource) => DatabaseResult<SqliteConnection>,
 ): Promise<ApiResult<PipelineStages<TBody, TQuery>>> {
   const config = loadAppConfig(env);
 
@@ -140,13 +131,7 @@ async function resolveStages<TBody, TQuery>(
     return refused(body.failure);
   }
 
-  const mode = resolveApplicationMode(request.headers.get("cookie"));
-
-  if (!mode.ok) {
-    return refused(mode.failure);
-  }
-
-  const opened = openConnection(env, mode.value);
+  const opened = openConnection(env);
 
   if (!opened.ok) {
     return refused(apiFailure(DATABASE_ERROR_API_CODE[opened.error.code]));
@@ -163,7 +148,6 @@ async function resolveStages<TBody, TQuery>(
     query: query.value,
     connection: opened.value,
     workspace: workspace.value,
-    mode: mode.value,
   });
 }
 
@@ -227,73 +211,66 @@ export function createApiHandler<TBody, TQuery, TData>(
   const now = deps.now ?? Date.now;
 
   return async function handleRequest(request: Request): Promise<Response> {
-    return serializeApplicationRequest(
-      request.headers.get("cookie"),
-      async () => {
-        const startedAt = now();
-        const requestId = resolveRequestId(
-          request.headers,
-          deps.createRequestId,
+    return serializeApplicationRequest(async () => {
+      const startedAt = now();
+      const requestId = resolveRequestId(request.headers, deps.createRequestId);
+      const url = new URL(request.url);
+
+      let failure: ApiFailure | undefined;
+      let failureType: string | undefined;
+      let response: Response;
+
+      try {
+        const stages = await resolveStages(
+          request,
+          url,
+          definition,
+          env,
+          openConnection,
         );
-        const url = new URL(request.url);
 
-        let failure: ApiFailure | undefined;
-        let failureType: string | undefined;
-        let response: Response;
-
-        try {
-          const stages = await resolveStages(
+        if (stages.ok) {
+          const outcome = await definition.handle({
             request,
             url,
-            definition,
-            env,
-            openConnection,
-          );
-
-          if (stages.ok) {
-            const outcome = await definition.handle({
-              request,
-              url,
-              requestId,
-              workspaceId: stages.value.workspace.id,
-              workspace: stages.value.workspace,
-              mode: stages.value.mode,
-              connection: stages.value.connection,
-              body: stages.value.body,
-              query: stages.value.query,
-            });
-
-            if (outcome.ok) {
-              response = successResponse(outcome.value, requestId);
-            } else {
-              failure = outcome.failure;
-              response = errorResponse(outcome.failure, requestId);
-            }
-          } else {
-            failure = stages.failure;
-            response = errorResponse(stages.failure, requestId);
-          }
-        } catch (cause) {
-          failure = apiFailure("internalError");
-          failureType = describeFailureType(cause);
-          response = errorResponse(failure, requestId);
-        }
-
-        logger(
-          buildLogEntry(
-            request.method,
-            logRoute(url),
             requestId,
-            response.status,
-            now() - startedAt,
-            failure,
-            failureType,
-          ),
-        );
+            workspaceId: stages.value.workspace.id,
+            workspace: stages.value.workspace,
+            connection: stages.value.connection,
+            body: stages.value.body,
+            query: stages.value.query,
+          });
 
-        return response;
-      },
-    );
+          if (outcome.ok) {
+            response = successResponse(outcome.value, requestId);
+          } else {
+            failure = outcome.failure;
+            response = errorResponse(outcome.failure, requestId);
+          }
+        } else {
+          failure = stages.failure;
+          response = errorResponse(stages.failure, requestId);
+        }
+      } catch (cause) {
+        failure = apiFailure("internalError");
+        failureType = describeFailureType(cause);
+        response = errorResponse(failure, requestId);
+      }
+
+      logger(
+        buildLogEntry(
+          request.method,
+          logRoute(url),
+          requestId,
+          response.status,
+          now() - startedAt,
+          failure,
+          failureType,
+        ),
+      );
+
+      return response;
+    });
   };
 }
 

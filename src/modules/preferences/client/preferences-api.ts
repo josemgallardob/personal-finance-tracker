@@ -2,8 +2,8 @@
  * Browser adapter for the preferences endpoint.
  *
  * GET /api/preferences is a read of the fixed personal configuration. There is
- * no mutation method: locale, currency, time zone and mode are not
- * client-writable. The returned representation is validated against the public
+ * no mutation method: locale, currency and time zone are not client-writable.
+ * The returned representation is validated against the public
  * Zod contract.
  */
 

@@ -41,8 +41,6 @@ export interface SeriesSelection {
 
 export interface UseSeriesSelectionOptions {
   readonly dimension: SeriesDimension;
-  /** Application mode the selection belongs to, or null until it is known. */
-  readonly mode: string | null;
   readonly options: readonly MultiSelectOption[];
   /** Session storage. Tests replace this at the browser boundary. */
   readonly storage?: SeriesStorage | null;
@@ -79,14 +77,13 @@ function browserSessionStorage(): SeriesStorage | null {
 /** Reads and keeps the selection of one dimension for the current mode. */
 export function useSeriesSelection({
   dimension,
-  mode,
   options,
   storage,
 }: UseSeriesSelectionOptions): SeriesSelection {
-  const key = mode === null ? null : seriesStorageKey(dimension, mode);
+  const key = seriesStorageKey(dimension);
   const session = storage === undefined ? browserSessionStorage() : storage;
   const readEntry = useCallback(
-    () => (key === null ? null : readSeriesEntry(session, key)),
+    () => readSeriesEntry(session, key),
     [key, session],
   );
   // The server has no session, so it always paints the catalog selection.
@@ -95,7 +92,6 @@ export function useSeriesSelection({
     readonly key: string;
     readonly raw: string;
   } | null>(null);
-  // A choice made for another mode belongs to that mode alone.
   const localEntry = chosen !== null && chosen.key === key ? chosen.raw : null;
   const stored = useMemo(
     () => parseSeriesIds(localEntry ?? entry),
@@ -104,10 +100,6 @@ export function useSeriesSelection({
 
   const setIds = useCallback(
     (next: readonly string[]) => {
-      if (key === null) {
-        return;
-      }
-
       setChosen({ key, raw: JSON.stringify([...next]) });
       writeStoredSeriesIds(session, key, next);
       notifyStoredSelectionChanged();

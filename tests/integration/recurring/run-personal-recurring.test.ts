@@ -362,7 +362,6 @@ describe("register", () => {
     const env = envOf(fixture);
     const previous = {
       DATABASE_PATH: process.env.DATABASE_PATH,
-      DEMO_DATABASE_PATH: process.env.DEMO_DATABASE_PATH,
       APP_URL: process.env.APP_URL,
       TZ: process.env.TZ,
       NEXT_PHASE: process.env.NEXT_PHASE,
@@ -370,7 +369,6 @@ describe("register", () => {
     };
 
     process.env.DATABASE_PATH = env.DATABASE_PATH;
-    process.env.DEMO_DATABASE_PATH = env.DEMO_DATABASE_PATH;
     process.env.APP_URL = env.APP_URL;
     process.env.TZ = env.TZ;
     delete process.env.NEXT_PHASE;
@@ -385,7 +383,6 @@ describe("register", () => {
     } finally {
       closeSqliteConnection();
       restoreEnv("DATABASE_PATH", previous.DATABASE_PATH);
-      restoreEnv("DEMO_DATABASE_PATH", previous.DEMO_DATABASE_PATH);
       restoreEnv("APP_URL", previous.APP_URL);
       restoreEnv("TZ", previous.TZ);
       restoreEnv("NEXT_PHASE", previous.NEXT_PHASE);
