@@ -44,6 +44,23 @@ describe("container image definition", () => {
     expect(dockerfile).not.toMatch(/RUN npm install/);
   });
 
+  it("keeps native dependency build tools out of the runtime stage", () => {
+    const dependenciesStage = dockerfile.slice(
+      dockerfile.indexOf("FROM ${NODE_IMAGE} AS dependencies"),
+      dockerfile.indexOf("FROM ${NODE_IMAGE} AS build"),
+    );
+    const runtimeStage = dockerfile.slice(
+      dockerfile.indexOf("FROM ${NODE_IMAGE} AS runtime"),
+    );
+
+    expect(dependenciesStage).toContain(
+      "apt-get install -y --no-install-recommends python3 make g++",
+    );
+    expect(runtimeStage).not.toContain("apt-get");
+    expect(runtimeStage).not.toContain("python3");
+    expect(runtimeStage).not.toContain("g++");
+  });
+
   it("pins the base image through a single build argument", () => {
     const baseImages = [...dockerfile.matchAll(/^FROM (\S+)/gm)].map(
       (match) => match[1],
@@ -134,6 +151,19 @@ describe("build context exclusions", () => {
 
   it("still allows the committed environment template", () => {
     expect(dockerignore.split("\n")).toContain("!.env.example");
+  });
+
+  it("includes only the E2E origin imported by build configuration", () => {
+    expect(dockerignore.split("\n")).toEqual(
+      expect.arrayContaining([
+        "tests",
+        "!tests/",
+        "tests/*",
+        "!tests/e2e/",
+        "tests/e2e/*",
+        "!tests/e2e/origin.ts",
+      ]),
+    );
   });
 });
 
