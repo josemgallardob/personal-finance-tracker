@@ -230,8 +230,8 @@ GitHub Actions es el proveedor de CI. El flujo inicial está implementado en
 
 El workflow tiene dos disparadores complementarios:
 
-- `pull_request` sobre `main` y `stable`, para publicar el check obligatorio que
-  permite que GitHub admita el PR en la merge queue;
+- `pull_request` sobre `main`, `stable` y ramas `release/*`, para publicar el
+  check obligatorio antes de integrar cada PR;
 - `merge_group` con el tipo `checks_requested`, para volver a ejecutar la misma
   calidad sobre el merge group completo que GitHub prepara con la versión más
   reciente de la rama destino y los PRs que estén por delante en la cola.

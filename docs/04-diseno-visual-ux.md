@@ -77,21 +77,19 @@ explica la primera fecha en que se generará una copia.
 
 Orden inicial para prototipar:
 
-1. Selector de periodo y acción Añadir.
-2. Tarjetas: ingresos, gastos y balance neto.
-3. Comparación ingresos/gastos y variación frente al periodo anterior.
-4. Evolución mensual.
-5. Gastos por categoría mediante barras horizontales.
-6. Gastos por etiquetas.
-7. Movimientos recientes.
-8. Bloque “Tu media mensual”: gasto total, balance neto y desglose por categorías
+1. Movimientos recientes.
+2. Selector de periodo, acción Añadir y tarjetas: ingresos, gastos y balance neto.
+3. Gastos por categoría mediante barras horizontales.
+4. Gastos por etiquetas.
+5. Comparación ingresos/gastos y variación frente al periodo anterior.
+6. Evolución mensual.
+7. Bloque “Tu media mensual”: gasto total, balance neto y desglose por categorías
    y tags sobre los últimos meses completos disponibles.
 
 El periodo por defecto es el mes actual. El selector ofrece mes anterior, últimos
 3 meses completos, año actual y rango personalizado de meses completos. No
 existe agrupación diaria o semanal. La evolución mantiene su propia ventana de
-hasta 12 meses incluido el actual; una etiqueta explica que no depende del
-selector de las tarjetas.
+hasta 12 meses incluido el actual y muestra ingresos, gastos y balance neto.
 
 Cuando el periodo está incompleto, la comparación muestra el intervalo de forma
 explícita —por ejemplo, “1–5 sep. frente a 1–5 ago.”— para evitar que el porcentaje
@@ -170,20 +168,20 @@ métrica, el historial recibe las fechas exactas que componen ese periodo.
 
 Paleta semántica adaptada de la referencia:
 
-| Token | Valor | Uso |
-| --- | --- | --- |
-| `surface` | `#000000` | fondo principal |
-| `surface-deep` | `#0A0A0A` | zonas agrupadas |
-| `surface-raised` | `#16181A` | tarjetas y paneles |
-| `surface-hover` | `#1F2226` | interacción secundaria |
-| `text` | `#FFFFFF` | texto principal |
-| `text-muted` | `rgba(255,255,255,0.72)` | texto secundario |
-| `primary` | `#494FDF` | acción principal y foco de marca |
-| `primary-bright` | `#4F55F1` | hover/foco de la acción principal |
-| `income` | `#00A87E` | apoyo semántico discreto para ingresos |
-| `expense` | `#E61E49` | apoyo semántico discreto para gastos |
-| `danger` | `#E23B4A` | errores y eliminación |
-| `border` | `rgba(255,255,255,0.12)` | separación |
+| Token            | Valor                    | Uso                                    |
+| ---------------- | ------------------------ | -------------------------------------- |
+| `surface`        | `#000000`                | fondo principal                        |
+| `surface-deep`   | `#0A0A0A`                | zonas agrupadas                        |
+| `surface-raised` | `#16181A`                | tarjetas y paneles                     |
+| `surface-hover`  | `#1F2226`                | interacción secundaria                 |
+| `text`           | `#FFFFFF`                | texto principal                        |
+| `text-muted`     | `rgba(255,255,255,0.72)` | texto secundario                       |
+| `primary`        | `#494FDF`                | acción principal y foco de marca       |
+| `primary-bright` | `#4F55F1`                | hover/foco de la acción principal      |
+| `income`         | `#00A87E`                | apoyo semántico discreto para ingresos |
+| `expense`        | `#E61E49`                | apoyo semántico discreto para gastos   |
+| `danger`         | `#E23B4A`                | errores y eliminación                  |
+| `border`         | `rgba(255,255,255,0.12)` | separación                             |
 
 ### Color financiero en el dashboard
 

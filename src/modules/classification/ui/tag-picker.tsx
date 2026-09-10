@@ -21,9 +21,7 @@ export const tagPickerCopy = {
   add: "Añadir",
   create: "Crear",
   empty: "No hay etiquetas que coincidan",
-  hint: "Opcional. Las etiquetas nuevas se guardan solo al confirmar el movimiento.",
   label: "Etiquetas",
-  pending: "pendiente",
   placeholder: "Buscar o crear una etiqueta",
   remove: "Quitar",
   selected: "Etiquetas seleccionadas",
@@ -138,9 +136,15 @@ export function TagPicker({
   const listboxId = `${fieldId}-suggestions`;
   const [query, setQuery] = useState("");
   const atLimit = value.length >= MAX_TAGS_PER_TRANSACTION;
+  const hasQuery = query.trim() !== "";
 
   const suggestions = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("es");
+
+    if (!normalizedQuery) {
+      return [];
+    }
+
     return tags.filter((tag) => {
       if (!isAssignableTag(tag, retainedTagIds)) {
         return false;
@@ -153,10 +157,6 @@ export function TagPicker({
         )
       ) {
         return false;
-      }
-
-      if (!normalizedQuery) {
-        return true;
       }
 
       return tag.name.toLocaleLowerCase("es").includes(normalizedQuery);
@@ -192,12 +192,7 @@ export function TagPicker({
   }
 
   return (
-    <Field
-      error={error}
-      hint={tagPickerCopy.hint}
-      id={fieldId}
-      label={tagPickerCopy.label}
-    >
+    <Field error={error} id={fieldId} label={tagPickerCopy.label}>
       <div className="flex w-full max-w-full flex-col gap-2">
         {value.length > 0 ? (
           <ul
@@ -206,10 +201,7 @@ export function TagPicker({
           >
             {value.map((selection) => {
               const key = selectionKey(selection);
-              const label =
-                selection.kind === "pending"
-                  ? `${selection.name} (${tagPickerCopy.pending})`
-                  : selection.name;
+              const label = selection.name;
 
               return (
                 <li key={key}>
@@ -257,7 +249,7 @@ export function TagPicker({
             {canCreatePending ? tagPickerCopy.create : tagPickerCopy.add}
           </Button>
         </div>
-        {suggestions.length > 0 || canCreatePending ? (
+        {hasQuery && (suggestions.length > 0 || canCreatePending) ? (
           <ul
             aria-label={tagPickerCopy.suggestions}
             id={listboxId}
@@ -301,11 +293,11 @@ export function TagPicker({
               </li>
             ) : null}
           </ul>
-        ) : (
+        ) : hasQuery ? (
           <p className="text-caption text-text-muted px-3 py-2" role="status">
             {tagPickerCopy.empty}
           </p>
-        )}
+        ) : null}
       </div>
     </Field>
   );

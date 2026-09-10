@@ -78,6 +78,10 @@ select {
   color: var(--color-text);
 }
 
+.transaction-date-input::-webkit-date-and-time-value {
+  text-align: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

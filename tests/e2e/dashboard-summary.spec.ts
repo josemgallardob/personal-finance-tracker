@@ -185,7 +185,15 @@ test.describe("financial dashboard on a narrow viewport", () => {
         '[data-chart="monthly-trend"] .recharts-responsive-container',
       ),
     ).toBeVisible();
-    await expect(page.getByText(dashboardCopy.trendIndependent)).toBeVisible();
+    await expect(
+      page.locator('[data-chart="monthly-trend"] .recharts-line'),
+    ).toHaveCount(3);
+    await expect(
+      page
+        .getByRole("table", { name: dashboardCopy.trendCaption })
+        .getByRole("columnheader", { name: dashboardCopy.net }),
+    ).toBeVisible();
+    await expect(page.getByText(/no depende del periodo/i)).toHaveCount(0);
     await expect(page.getByText(dashboardCopy.tagOverlap)).toBeVisible();
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
 
