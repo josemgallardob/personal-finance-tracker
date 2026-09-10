@@ -34,6 +34,7 @@ import {
   drillDownHistoryHref,
   formatDateRangeLabel,
   formatPercentHundredths,
+  signedSummaryAmount,
   summaryAmount,
 } from "../summary-presentation";
 
@@ -52,8 +53,10 @@ export interface MonthlyTrendPoint {
   readonly label: string;
   readonly incomeMinor: number;
   readonly expenseMinor: number;
+  readonly netMinor: number;
   readonly incomeLabel: string;
   readonly expenseLabel: string;
+  readonly netLabel: string;
   readonly href: string | null;
   readonly incomeHref: string | null;
   readonly expenseHref: string | null;
@@ -87,13 +90,17 @@ export interface BreakdownBar {
 }
 
 function monthPoint(totals: MonthlyTotalsDto): MonthlyTrendPoint {
+  const netMinor = totals.incomeMinor - totals.expenseMinor;
+
   return {
     month: totals.month,
     label: formatMonthKeyAsSpanish(totals.month),
     incomeMinor: totals.incomeMinor,
     expenseMinor: totals.expenseMinor,
+    netMinor,
     incomeLabel: summaryAmount(totals.incomeMinor),
     expenseLabel: summaryAmount(totals.expenseMinor),
+    netLabel: signedSummaryAmount(netMinor),
     href: drillDownHistoryHref(totals.drillDown),
     incomeHref: drillDownHistoryHref(totals.incomeDrillDown),
     expenseHref: drillDownHistoryHref(totals.expenseDrillDown),
