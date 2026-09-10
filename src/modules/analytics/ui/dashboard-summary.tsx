@@ -196,7 +196,6 @@ export function DashboardSummary({
 
   return (
     <div className="flex w-full max-w-full min-w-0 flex-col gap-6">
-      <PeriodSelector onChange={setPeriod} value={period} />
       {snapshot.status === "loading" ? (
         <LoadingState label={dashboardCopy.loading} />
       ) : null}
@@ -222,8 +221,18 @@ export function DashboardSummary({
           </Button>
         </div>
       ) : null}
+      {data === undefined ? (
+        <PeriodSelector onChange={setPeriod} value={period} />
+      ) : null}
       {data === undefined ? null : (
         <>
+          <RecentTransactions
+            categories={data.categories}
+            client={apiClient}
+            tags={data.tags}
+            transactions={data.summary.recentTransactions}
+          />
+          <PeriodSelector onChange={setPeriod} value={period} />
           <p className="text-body-sm text-text-muted" data-period-range="">
             {dashboardCopy.periodRange(
               formatDateRangeLabel(data.summary.range),
@@ -231,10 +240,6 @@ export function DashboardSummary({
           </p>
           <SummaryCards
             drillDowns={data.summary.drillDowns}
-            totals={data.summary.totals}
-          />
-          <PeriodComparison
-            comparison={data.summary.comparison}
             totals={data.summary.totals}
           />
           <ExpenseCategoryBars
@@ -248,11 +253,9 @@ export function DashboardSummary({
             options={tagOptions}
             selection={tagSelection}
           />
-          <RecentTransactions
-            categories={data.categories}
-            client={apiClient}
-            tags={data.tags}
-            transactions={data.summary.recentTransactions}
+          <PeriodComparison
+            comparison={data.summary.comparison}
+            totals={data.summary.totals}
           />
         </>
       )}

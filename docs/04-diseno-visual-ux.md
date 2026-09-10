@@ -77,14 +77,13 @@ explica la primera fecha en que se generará una copia.
 
 Orden inicial para prototipar:
 
-1. Selector de periodo y acción Añadir.
-2. Tarjetas: ingresos, gastos y balance neto.
-3. Comparación ingresos/gastos y variación frente al periodo anterior.
-4. Evolución mensual.
-5. Gastos por categoría mediante barras horizontales.
-6. Gastos por etiquetas.
-7. Movimientos recientes.
-8. Bloque “Tu media mensual”: gasto total, balance neto y desglose por categorías
+1. Movimientos recientes.
+2. Selector de periodo, acción Añadir y tarjetas: ingresos, gastos y balance neto.
+3. Gastos por categoría mediante barras horizontales.
+4. Gastos por etiquetas.
+5. Comparación ingresos/gastos y variación frente al periodo anterior.
+6. Evolución mensual.
+7. Bloque “Tu media mensual”: gasto total, balance neto y desglose por categorías
    y tags sobre los últimos meses completos disponibles.
 
 El periodo por defecto es el mes actual. El selector ofrece mes anterior, últimos
