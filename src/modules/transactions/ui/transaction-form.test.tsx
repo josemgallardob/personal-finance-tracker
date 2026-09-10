@@ -393,9 +393,16 @@ describe("TransactionForm", () => {
     renderForm();
 
     const amount = screen.getByLabelText(/Importe/);
+    const amountControl = amount.parentElement;
+
     expect(amount).toHaveFocus();
     expect(amount).toHaveAttribute("inputMode", "decimal");
     expect(amount).toHaveAttribute("aria-required", "true");
+    expect(amount).toHaveClass("pr-12");
+    expect(within(amountControl as HTMLElement).getByText("€")).toBeVisible();
+    expect(
+      screen.queryByText(transactionFormCopy.amountHint),
+    ).not.toBeInTheDocument();
     expect(screen.getByText(transactionFormCopy.requiredFields)).toBeVisible();
     expect(screen.getAllByText("*")).toHaveLength(5);
   });

@@ -207,19 +207,27 @@ export function TransactionForm({
       />
       <Field
         error={formState.errors.amountText?.message}
-        hint={transactionFormCopy.amountHint}
         id="transaction-amount"
         label="Importe"
         required
       >
-        <Input
-          autoComplete="off"
-          autoFocus
-          inputMode="decimal"
-          placeholder="0,00"
-          tabular
-          {...register("amountText")}
-        />
+        <div className="relative w-full max-w-full">
+          <Input
+            autoComplete="off"
+            autoFocus
+            className="pr-12"
+            inputMode="decimal"
+            placeholder="0,00"
+            tabular
+            {...register("amountText")}
+          />
+          <span
+            aria-hidden="true"
+            className="text-body text-text-muted pointer-events-none absolute inset-y-0 right-4 flex items-center"
+          >
+            €
+          </span>
+        </div>
       </Field>
       <Field
         error={formState.errors.concept?.message}
