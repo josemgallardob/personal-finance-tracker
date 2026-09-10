@@ -352,6 +352,7 @@ describe("TransactionForm", () => {
     const { onSubmit } = renderForm();
 
     await fillRequired(user);
+    await user.type(screen.getByRole("combobox", { name: "Etiquetas" }), "Via");
     await user.click(screen.getByRole("option", { name: "Viajes" }));
     await user.type(
       screen.getByRole("combobox", { name: "Etiquetas" }),

@@ -47,6 +47,12 @@ describe("TagPicker", () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
 
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Opcional/)).not.toBeInTheDocument();
+    await user.type(
+      screen.getByRole("combobox", { name: tagPickerCopy.label }),
+      "Via",
+    );
     await user.click(screen.getByRole("option", { name: "Viajes" }));
     await user.type(
       screen.getByRole("combobox", { name: tagPickerCopy.label }),
@@ -75,7 +81,8 @@ describe("TagPicker", () => {
     );
     await user.click(screen.getByRole("option", { name: /Crear «Café»/ }));
 
-    expect(screen.getByText("Café (pendiente)")).toBeVisible();
+    expect(screen.getByText("Café")).toBeVisible();
+    expect(screen.queryByText(/pendiente/i)).not.toBeInTheDocument();
     expect(fetchImpl).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
@@ -111,8 +118,8 @@ describe("TagPicker", () => {
     );
 
     const selected = screen.getByRole("list", { name: tagPickerCopy.selected });
-    expect(within(selected).getByText("cafe (pendiente)")).toBeVisible();
-    expect(within(selected).getByText("café (pendiente)")).toBeVisible();
+    expect(within(selected).getByText("cafe")).toBeVisible();
+    expect(within(selected).getByText("café")).toBeVisible();
   });
 
   it("deduplicates a pending name that matches a selected existing tag", async () => {
@@ -151,7 +158,10 @@ describe("TagPicker", () => {
       />,
     );
 
-    await user.click(screen.getByRole("option", { name: "Archivado" }));
+    await user.type(
+      screen.getByRole("combobox", { name: tagPickerCopy.label }),
+      "Archi",
+    );
     expect(screen.getByRole("option", { name: "Archivado" })).toBeEnabled();
   });
 
@@ -188,12 +198,10 @@ describe("TagPicker", () => {
     });
     await user.type(combobox, "Extra");
     await user.keyboard("{Enter}");
-    expect(screen.getByText("Extra (pendiente)")).toBeVisible();
+    expect(screen.getByText("Extra")).toBeVisible();
 
-    await user.click(
-      screen.getByRole("button", { name: "Quitar Extra (pendiente)" }),
-    );
-    expect(screen.queryByText("Extra (pendiente)")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Quitar Extra" }));
+    expect(screen.queryByText("Extra")).not.toBeInTheDocument();
   });
 
   it("stops adding tags at the movement limit", async () => {
