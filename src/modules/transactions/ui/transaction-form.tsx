@@ -275,12 +275,14 @@ export function TransactionForm({
         label={transactionFormCopy.dateLabel}
         required
       >
-        <Input
-          className="transaction-date-input h-12 min-h-12 max-w-64 px-3 text-center"
-          max={today}
-          type="date"
-          {...register("date")}
-        />
+        <div className="w-48 max-w-full">
+          <Input
+            className="transaction-date-input h-12 min-h-12 text-center"
+            max={today}
+            type="date"
+            {...register("date")}
+          />
+        </div>
       </Field>
       <Controller
         control={control}

@@ -425,7 +425,8 @@ describe("TransactionForm", () => {
           Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
     }
-    expect(fields[3]).toHaveClass("h-12", "max-w-64", "text-center");
+    expect(fields[3]).toHaveClass("h-12", "text-center");
+    expect(fields[3].parentElement).toHaveClass("w-48", "max-w-full");
   });
 
   it("can be completed with the keyboard on a compact form", async () => {
