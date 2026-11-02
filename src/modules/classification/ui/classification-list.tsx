@@ -12,9 +12,8 @@
  *
  * The type of a category is immutable, so expense and income are separate
  * lists with their own headings and counts. Nothing merges them, not even
- * while one of the two is empty. Active rows of one type can move up or down;
- * a failed order save restores the previous sequence. Archive asks for
- * confirmation and never hides a row that the server refused with 409.
+ * while one of the two is empty. Archive asks for confirmation and never hides
+ * a row that the server refused with 409.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -48,12 +47,6 @@ import {
   renameCategoryLabel,
   renameTagLabel,
 } from "./classification-copy";
-import { OrderControls } from "./order-controls";
-import {
-  activeItemIds,
-  moveActiveItem,
-  orderControlsCopy,
-} from "./order-model";
 import { TagDialog, type TagDialogMode } from "./tag-dialog";
 
 const CATEGORY_REQUEST_KEY = "classification:categories:all";
@@ -71,47 +64,10 @@ export function groupCategoriesByType(
   };
 }
 
-function categoryOrdersEqual(
-  left: readonly CategoryDto[],
-  right: readonly CategoryDto[],
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((item, index) => item.id === right[index]?.id)
-  );
-}
-
 function countArchived(
   items: readonly { readonly isArchived: boolean }[],
 ): number {
   return items.filter((item) => item.isArchived).length;
-}
-
-function replaceTypeOrder(
-  categories: readonly CategoryDto[],
-  type: TransactionType,
-  nextOfType: readonly CategoryDto[],
-): CategoryDto[] {
-  const result: CategoryDto[] = [];
-  let replaced = false;
-
-  for (const item of categories) {
-    if (item.type !== type) {
-      result.push(item);
-      continue;
-    }
-
-    if (!replaced) {
-      result.push(...nextOfType);
-      replaced = true;
-    }
-  }
-
-  if (!replaced) {
-    result.push(...nextOfType);
-  }
-
-  return result;
 }
 
 function ArchivedBadge() {
@@ -154,11 +110,7 @@ interface CategoryTypeSectionProps {
   readonly emptyLabel: string;
   readonly headingId: string;
   readonly onArchive: (category: CategoryDto) => void;
-  readonly onMove: (category: CategoryDto, direction: -1 | 1) => void;
   readonly onRename: (category: CategoryDto) => void;
-  readonly onRetryOrder?: () => void;
-  readonly orderError?: string;
-  readonly orderPending: boolean;
   readonly title: string;
 }
 
@@ -167,15 +119,10 @@ function CategoryTypeSection({
   emptyLabel,
   headingId,
   onArchive,
-  onMove,
   onRename,
-  onRetryOrder,
-  orderError,
-  orderPending,
   title,
 }: CategoryTypeSectionProps) {
   const archived = countArchived(categories);
-  const active = categories.filter((category) => !category.isArchived);
 
   return (
     <section aria-labelledby={headingId} className="w-full max-w-full min-w-0">
@@ -187,23 +134,6 @@ function CategoryTypeSection({
           {activeArchivedSummary(categories.length - archived, archived)}
         </p>
       </div>
-      {orderError ? (
-        <div
-          role="alert"
-          className="border-danger bg-surface-raised mt-3 flex w-full max-w-full flex-col items-start gap-3 rounded-lg border p-4"
-        >
-          <p className="text-body-sm text-text">{orderError}</p>
-          {onRetryOrder ? (
-            <Button
-              aria-label={orderControlsCopy.retry}
-              variant="secondary"
-              onClick={onRetryOrder}
-            >
-              {classificationCopy.retry}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
       {categories.length === 0 ? (
         <p className="text-body-sm text-text-muted mt-3">{emptyLabel}</p>
       ) : (
@@ -211,38 +141,22 @@ function CategoryTypeSection({
           aria-labelledby={headingId}
           className="mt-3 flex w-full max-w-full min-w-0 flex-col gap-2"
         >
-          {categories.map((category) => {
-            const activeIndex = active.findIndex(
-              (item) => item.id === category.id,
-            );
-
-            return (
-              <li
-                key={category.id}
-                className="border-border bg-surface-raised flex min-h-14 w-full max-w-full min-w-0 flex-wrap items-center gap-3 rounded-md border p-3"
-              >
+          {categories.map((category) => (
+            <li
+              key={category.id}
+              className="border-border bg-surface-raised flex min-h-14 w-full max-w-full min-w-0 flex-col items-stretch gap-3 rounded-md border p-3 sm:flex-row sm:items-center"
+            >
+              <div className="flex min-w-0 items-center gap-3 sm:flex-1">
                 <CategoryIcon categoryId={category.id} />
                 <span className="text-body text-text min-w-0 flex-1 break-words">
                   {category.name}
                 </span>
                 {category.isArchived ? <ArchivedBadge /> : null}
-                {!category.isArchived ? (
-                  <OrderControls
-                    canMoveDown={activeIndex < active.length - 1}
-                    canMoveUp={activeIndex > 0}
-                    disabled={orderPending}
-                    name={category.name}
-                    onMoveDown={() => {
-                      onMove(category, 1);
-                    }}
-                    onMoveUp={() => {
-                      onMove(category, -1);
-                    }}
-                  />
-                ) : null}
+              </div>
+              <div className="flex w-full min-w-0 gap-2 sm:w-auto sm:shrink-0">
                 <Button
                   aria-label={renameCategoryLabel(category.name)}
-                  className="w-auto shrink-0 px-4"
+                  className="min-w-0 flex-1 px-4 sm:w-auto sm:flex-none"
                   data-classification-focus={category.id}
                   onClick={() => {
                     onRename(category);
@@ -254,7 +168,7 @@ function CategoryTypeSection({
                 {!category.isArchived ? (
                   <Button
                     aria-label={archiveCategoryLabel(category.name)}
-                    className="w-auto shrink-0 px-4"
+                    className="min-w-0 flex-1 px-4 sm:w-auto sm:flex-none"
                     variant="danger"
                     onClick={() => {
                       onArchive(category);
@@ -263,9 +177,9 @@ function CategoryTypeSection({
                     {classificationCopy.archiveAction}
                   </Button>
                 ) : null}
-              </li>
-            );
-          })}
+              </div>
+            </li>
+          ))}
         </ul>
       )}
       {archived > 0 ? (
@@ -280,21 +194,11 @@ function CategoryTypeSection({
 function CategoryCatalog({
   categories,
   onArchive,
-  onMove,
   onRename,
-  onRetryOrder,
-  orderError,
-  orderErrorType,
-  orderPending,
 }: {
   categories: readonly CategoryDto[];
   onArchive: (category: CategoryDto) => void;
-  onMove: (category: CategoryDto, direction: -1 | 1) => void;
   onRename: (category: CategoryDto) => void;
-  onRetryOrder?: () => void;
-  orderError?: string;
-  orderErrorType?: TransactionType;
-  orderPending: boolean;
 }) {
   const grouped = useMemo(
     () => groupCategoriesByType(categories),
@@ -317,11 +221,7 @@ function CategoryCatalog({
         emptyLabel={classificationCopy.expenseEmpty}
         headingId="categories-expense-heading"
         onArchive={onArchive}
-        onMove={onMove}
         onRename={onRename}
-        onRetryOrder={orderErrorType === "expense" ? onRetryOrder : undefined}
-        orderError={orderErrorType === "expense" ? orderError : undefined}
-        orderPending={orderPending}
         title={classificationCopy.expenseTitle}
       />
       <CategoryTypeSection
@@ -329,11 +229,7 @@ function CategoryCatalog({
         emptyLabel={classificationCopy.incomeEmpty}
         headingId="categories-income-heading"
         onArchive={onArchive}
-        onMove={onMove}
         onRename={onRename}
-        onRetryOrder={orderErrorType === "income" ? onRetryOrder : undefined}
-        orderError={orderErrorType === "income" ? orderError : undefined}
-        orderPending={orderPending}
         title={classificationCopy.incomeTitle}
       />
     </div>
@@ -372,33 +268,37 @@ function TagCatalog({
         {tags.map((tag) => (
           <li
             key={tag.id}
-            className="border-border bg-surface-raised text-body-sm text-text flex min-h-11 max-w-full min-w-0 items-center gap-2 rounded-full border px-4"
+            className="border-border bg-surface-raised text-body-sm text-text flex min-h-11 w-full max-w-full min-w-0 flex-col items-stretch gap-3 rounded-md border p-3 sm:w-auto sm:flex-row sm:items-center sm:rounded-full sm:px-4"
           >
-            <span className="min-w-0 break-words">{tag.name}</span>
-            {tag.isArchived ? <ArchivedBadge /> : null}
-            <Button
-              aria-label={renameTagLabel(tag.name)}
-              className="h-11 min-h-11 w-auto shrink-0 px-3 text-sm"
-              data-classification-focus={tag.id}
-              onClick={() => {
-                onRename(tag);
-              }}
-              variant="secondary"
-            >
-              {classificationCopy.renameAction}
-            </Button>
-            {!tag.isArchived ? (
+            <div className="flex min-w-0 items-center gap-2 sm:flex-1">
+              <span className="min-w-0 flex-1 break-words">{tag.name}</span>
+              {tag.isArchived ? <ArchivedBadge /> : null}
+            </div>
+            <div className="flex w-full min-w-0 gap-2 sm:w-auto sm:shrink-0">
               <Button
-                aria-label={archiveTagLabel(tag.name)}
-                className="h-11 min-h-11 w-auto shrink-0 px-3 text-sm"
-                variant="danger"
+                aria-label={renameTagLabel(tag.name)}
+                className="h-11 min-h-11 min-w-0 flex-1 px-3 text-sm sm:w-auto sm:flex-none"
+                data-classification-focus={tag.id}
                 onClick={() => {
-                  onArchive(tag);
+                  onRename(tag);
                 }}
+                variant="secondary"
               >
-                {classificationCopy.archiveAction}
+                {classificationCopy.renameAction}
               </Button>
-            ) : null}
+              {!tag.isArchived ? (
+                <Button
+                  aria-label={archiveTagLabel(tag.name)}
+                  className="h-11 min-h-11 min-w-0 flex-1 px-3 text-sm sm:w-auto sm:flex-none"
+                  variant="danger"
+                  onClick={() => {
+                    onArchive(tag);
+                  }}
+                >
+                  {classificationCopy.archiveAction}
+                </Button>
+              ) : null}
+            </div>
           </li>
         ))}
       </ul>
@@ -419,31 +319,17 @@ export interface ClassificationListProps {
   readonly api?: ClassificationApi;
 }
 
-interface PendingReorder {
-  readonly type: TransactionType;
-  readonly categories: readonly CategoryDto[];
-}
-
 /** Renders the category catalog and the tag view of the management page. */
 export function ClassificationList({
   api = defaultClassificationApi,
 }: ClassificationListProps = {}) {
-  const { announceSuccessfulMutation, revision, refreshEpoch } =
-    useFinancialDataRevision();
+  const { revision, refreshEpoch } = useFinancialDataRevision();
   const [categoryDialog, setCategoryDialog] =
     useState<CategoryDialogMode | null>(null);
   const [tagDialog, setTagDialog] = useState<TagDialogMode | null>(null);
   const [archiveKind, setArchiveKind] = useState<ArchiveDialogKind>("category");
   const [archiveTarget, setArchiveTarget] =
     useState<ArchiveDialogTarget | null>(null);
-  const [categoryDraft, setCategoryDraft] = useState<
-    readonly CategoryDto[] | null
-  >(null);
-  const [orderPhase, setOrderPhase] = useState<"idle" | "saving">("idle");
-  const [orderError, setOrderError] = useState<string | undefined>();
-  const [failedReorder, setFailedReorder] = useState<PendingReorder | null>(
-    null,
-  );
   const restoreFocusId = useRef<string | null>(null);
 
   const categories = useResource<readonly CategoryDto[]>({
@@ -460,17 +346,7 @@ export function ClassificationList({
     refreshEpoch,
   });
 
-  if (
-    categoryDraft !== null &&
-    categories.status === "ready" &&
-    categories.data !== undefined &&
-    categoryOrdersEqual(categoryDraft, categories.data)
-  ) {
-    setCategoryDraft(null);
-  }
-
-  const orderBusy = orderPhase === "saving";
-  const displayedCategories = categoryDraft ?? categories.data ?? [];
+  const displayedCategories = categories.data ?? [];
 
   useEffect(() => {
     const focusId = restoreFocusId.current;
@@ -492,53 +368,6 @@ export function ClassificationList({
     restoreFocusId.current = null;
     target.focus();
   }, [categories.data, categories.status, tags.data, tags.status]);
-
-  async function saveOrder(
-    type: TransactionType,
-    nextCategories: readonly CategoryDto[],
-  ) {
-    const ofType = nextCategories.filter((category) => category.type === type);
-    setCategoryDraft(nextCategories);
-    setOrderPhase("saving");
-    setOrderError(undefined);
-    setFailedReorder(null);
-
-    const result = await api.reorderCategories({
-      type,
-      orderedCategoryIds: [...activeItemIds(ofType)],
-    });
-
-    if (result.ok) {
-      setOrderPhase("idle");
-      announceSuccessfulMutation();
-      return;
-    }
-
-    setOrderPhase("idle");
-    setCategoryDraft(null);
-    setOrderError(orderControlsCopy.saveFailed);
-    setFailedReorder({ type, categories: nextCategories });
-  }
-
-  function handleMove(category: CategoryDto, direction: -1 | 1) {
-    if (orderBusy) {
-      return;
-    }
-
-    const ofType = displayedCategories.filter(
-      (item) => item.type === category.type,
-    );
-    const moved = moveActiveItem(ofType, category.id, direction);
-
-    if (moved === null) {
-      return;
-    }
-
-    void saveOrder(
-      category.type,
-      replaceTypeOrder(displayedCategories, category.type, moved),
-    );
-  }
 
   return (
     <div className="flex w-full max-w-full min-w-0 flex-col gap-8">
@@ -572,25 +401,16 @@ export function ClassificationList({
             onRetry={categories.refetch}
           />
         ) : null}
-        {categories.status === "ready" || categoryDraft !== null ? (
+        {categories.status === "ready" ? (
           <CategoryCatalog
             categories={displayedCategories}
             onArchive={(category) => {
               setArchiveKind("category");
               setArchiveTarget({ id: category.id, name: category.name });
             }}
-            onMove={handleMove}
             onRename={(category) => {
               setCategoryDialog({ kind: "rename", category });
             }}
-            onRetryOrder={() => {
-              if (failedReorder) {
-                void saveOrder(failedReorder.type, failedReorder.categories);
-              }
-            }}
-            orderError={orderError}
-            orderErrorType={failedReorder?.type}
-            orderPending={orderBusy}
           />
         ) : null}
       </section>

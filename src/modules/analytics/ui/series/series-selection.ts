@@ -8,9 +8,8 @@
  * of that dimension read, so a category hidden in one of them is hidden in the
  * other too.
  *
- * Only identifiers are stored, in the session of the browser and under a key of
- * their application mode, so personal figures never leave the session and a
- * demonstration session can never inherit the selection of a personal one.
+ * Only identifiers are stored in the session of the browser, so personal
+ * figures never leave the session.
  *
  * The presence of a stored entry is itself the record of a manual decision.
  * Nothing is written until the owner changes the selection, so a session that
@@ -42,14 +41,11 @@ export interface SeriesStorage {
 /**
  * Key one selection is stored under.
  *
- * The mode is part of the key, not of the value, so reading the selection of
- * the current mode can never return the identifiers of the other one.
+ * The personal suffix preserves the existing browser-session key across this
+ * release.
  */
-export function seriesStorageKey(
-  dimension: SeriesDimension,
-  mode: string,
-): string {
-  return `${STORAGE_PREFIX}:${dimension}:${mode}`;
+export function seriesStorageKey(dimension: SeriesDimension): string {
+  return `${STORAGE_PREFIX}:${dimension}:personal`;
 }
 
 function isIdentifierList(value: unknown): value is readonly string[] {

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { parseLocalDate } from "../../../shared/domain/dates";
 import {
-  PERSONAL_APPLICATION_MODE,
   PREFERENCES_CURRENCY,
   PREFERENCES_LOCALE,
   PREFERENCES_TIME_ZONE,
@@ -25,7 +24,6 @@ describe("toPreferencesDto", () => {
       locale: PREFERENCES_LOCALE,
       currency: PREFERENCES_CURRENCY,
       timeZone: PREFERENCES_TIME_ZONE,
-      mode: PERSONAL_APPLICATION_MODE,
       today: today(),
     });
 
@@ -33,13 +31,11 @@ describe("toPreferencesDto", () => {
       locale: "es-ES",
       currency: "EUR",
       timeZone: "Europe/Madrid",
-      mode: "personal",
       today: "2026-01-01",
     });
     expect(Object.keys(dto).sort()).toEqual([
       "currency",
       "locale",
-      "mode",
       "timeZone",
       "today",
     ]);
@@ -50,7 +46,6 @@ describe("toPreferencesDto", () => {
       locale: PREFERENCES_LOCALE,
       currency: PREFERENCES_CURRENCY,
       timeZone: PREFERENCES_TIME_ZONE,
-      mode: PERSONAL_APPLICATION_MODE,
       today: today(),
     });
 

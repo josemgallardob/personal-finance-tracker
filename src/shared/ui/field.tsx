@@ -41,7 +41,10 @@ export function Field({
       <label htmlFor={id} className="text-body-sm text-text font-semibold">
         {label}
         {required ? (
-          <span className="text-text-muted font-normal"> · obligatorio</span>
+          <span aria-hidden="true" className="text-danger">
+            {" "}
+            *
+          </span>
         ) : null}
       </label>
       <FieldContext.Provider

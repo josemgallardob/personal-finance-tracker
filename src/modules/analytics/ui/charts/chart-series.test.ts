@@ -48,7 +48,10 @@ describe("monthlyTrendPoints", () => {
     ]);
     expect(withPlainSpaces(points[1].incomeLabel)).toBe("0,00 €");
     expect(withPlainSpaces(points[1].expenseLabel)).toBe("0,00 €");
+    expect(withPlainSpaces(points[1].netLabel)).toBe("0,00 €");
     expect(withPlainSpaces(points[2].expenseLabel)).toBe("1200,50 €");
+    expect(points[2].netMinor).toBe(129950);
+    expect(withPlainSpaces(points[2].netLabel)).toBe("+1299,50 €");
   });
 
   it("opens the history of the month and of each of its two series", () => {

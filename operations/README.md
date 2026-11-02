@@ -64,7 +64,7 @@ Choose one scheduler, not both. The systemd timer is preferred because
 `Persistent=true` runs a missed daily activation after the host returns; cron
 does not have that catch-up property. Both templates run `docker compose run
 --rm --no-deps --entrypoint npm app run recurring:run`, which obtains the
-same `app` `env_file` and named personal/demo volumes from `compose.yml` and
+same `app` `env_file` and named personal volume from `compose.yml` and
 does not publish ports.
 
 For systemd, replace `__APP_DIRECTORY__` in the service template with the
@@ -86,7 +86,7 @@ application startup sequence remains the recovery path in this fallback.
 
 The recurrence command and server startup are idempotent. The timer can run
 while the application is live because the SQLite recurrence uniqueness rule
-prevents duplicate scheduled occurrences; a restart also migrates both files
+prevents duplicate scheduled occurrences; a restart also migrates the database
 and catches up overdue personal recurrences before accepting requests.
 
 ## Encrypted external backup and retention
@@ -186,7 +186,7 @@ recurring-rule count and occurrence count before and after migration. It prints
 only a closed status and the number of applied migrations; it never prints
 paths, counts, totals, concepts, tags or key material.
 
-The command never opens the configured personal or demonstration file for
+The command never opens the configured personal database for
 writing and deletes its temporary plaintext copy on either success or failure.
 A corrupt, renamed, foreign or incompatible artifact therefore exits non-zero
 before any replacement step is available to an operator. Repository tests are a
@@ -201,7 +201,7 @@ host merely because a repository check passed:
 
 1. Record the artifact name, intended database role, operator and approved
    window outside the repository. Confirm that the target is the personal
-   database, never the isolated demonstration file.
+   database.
 2. Run `npm run restore:verify -- /path/to/artifact.sqlite.enc` in a disposable
    environment with the same migration files and the owner-installed key. Stop
    on any non-zero exit; do not retry by bypassing integrity, migration or

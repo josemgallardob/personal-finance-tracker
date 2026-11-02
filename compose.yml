@@ -1,9 +1,8 @@
 # Private single-instance deployment.
 #
-# One application container, one durable volume for the personal database and
-# a separate durable volume for the isolated demonstration database. The port
-# is published on the host loopback address only: remote access is granted by
-# the private VPN or a local reverse proxy, never by this file.
+# One application container and one durable volume for the personal database.
+# The port is published on the host loopback address only: remote access is
+# granted by the private VPN or a local reverse proxy, never by this file.
 
 name: personal-finance-tracker
 
@@ -19,10 +18,9 @@ services:
     env_file:
       - .env
     environment:
-      # Fixed container paths win over the local development values in .env so
-      # the personal and demonstration files always land on their own volume.
+      # The fixed container path wins over the local development value in .env
+      # so personal data always lands on its durable volume.
       DATABASE_PATH: /data/personal/personal-finance.db
-      DEMO_DATABASE_PATH: /data/demo/personal-finance-demo.db
       HOST: 0.0.0.0
       PORT: "3000"
       ALLOW_NON_LOOPBACK_BIND: "true"
@@ -30,7 +28,6 @@ services:
       - "127.0.0.1:${APP_PORT:-3000}:3000"
     volumes:
       - personal-data:/data/personal
-      - demo-data:/data/demo
     init: true
     restart: unless-stopped
     stop_signal: SIGTERM
@@ -43,4 +40,3 @@ services:
 
 volumes:
   personal-data:
-  demo-data:

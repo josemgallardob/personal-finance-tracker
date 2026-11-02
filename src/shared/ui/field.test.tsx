@@ -16,7 +16,7 @@ describe("Field", () => {
 
     expect(input).toHaveAccessibleDescription("Opcional");
     expect(input).toBeValid();
-    expect(screen.queryByText(/obligatorio/)).not.toBeInTheDocument();
+    expect(screen.queryByText("*")).not.toBeInTheDocument();
   });
 
   it("leaves a valid optional field without descriptions", () => {
@@ -30,10 +30,10 @@ describe("Field", () => {
 
     expect(input).toBeValid();
     expect(input).not.toHaveAttribute("aria-describedby");
-    expect(screen.queryByText(/obligatorio/)).not.toBeInTheDocument();
+    expect(screen.queryByText("*")).not.toBeInTheDocument();
   });
 
-  it("announces a required field and its error together with the hint", () => {
+  it("marks a required field and announces its error together with the hint", () => {
     render(
       <Field
         id="amount"
@@ -48,7 +48,8 @@ describe("Field", () => {
 
     const input = screen.getByLabelText(/Importe/);
 
-    expect(screen.getByText(/obligatorio/)).toBeVisible();
+    expect(screen.getByText("*")).toHaveClass("text-danger");
+    expect(screen.getByText("*")).toHaveAttribute("aria-hidden", "true");
     expect(input).toBeRequired();
     expect(input).toBeInvalid();
     expect(input).toHaveAccessibleDescription(

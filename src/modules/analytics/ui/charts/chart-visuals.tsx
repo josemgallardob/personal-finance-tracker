@@ -49,7 +49,7 @@ const axisStyle = {
   fontSize: 12,
 } as const;
 
-/** Line series of income and expense over the months of the evolution window. */
+/** Income, expense and net-balance lines over the monthly evolution window. */
 export function MonthlyTrendVisual({
   points,
 }: {
@@ -59,6 +59,7 @@ export function MonthlyTrendVisual({
     label: point.label,
     income: toEurUnits(point.incomeMinor),
     expense: toEurUnits(point.expenseMinor),
+    net: toEurUnits(point.netMinor),
   }));
 
   return (
@@ -81,6 +82,15 @@ export function MonthlyTrendVisual({
           isAnimationActive={false}
           stroke={colorTokens.expense}
           strokeDasharray="6 3"
+          strokeWidth={2}
+          type="monotone"
+        />
+        <Line
+          dataKey="net"
+          dot={{ r: 3 }}
+          isAnimationActive={false}
+          stroke={colorTokens.primaryBright}
+          strokeDasharray="2 4"
           strokeWidth={2}
           type="monotone"
         />

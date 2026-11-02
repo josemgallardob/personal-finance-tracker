@@ -29,19 +29,17 @@ function fail(message: string): never {
 function main(): void {
   const directory = mkdtempSync(join(tmpdir(), "pft-e2e-"));
   const databasePath = join(directory, "personal-finance.sqlite");
-  const demoDatabasePath = join(directory, "personal-finance-demo.sqlite");
   const origin = e2eOrigin();
   const env = {
     ...process.env,
     DATABASE_PATH: databasePath,
-    DEMO_DATABASE_PATH: demoDatabasePath,
     APP_URL: origin,
     TZ: APPLICATION_TIME_ZONE,
     [E2E_HARNESS_ENV]: E2E_HARNESS_ENABLED_VALUE,
     PORT: String(E2E_PORT),
   };
 
-  for (const command of ["db:migrate", "db:migrate:demo", "db:seed:demo"]) {
+  for (const command of ["db:migrate"]) {
     const migrated = spawnSync("npm", ["run", command], {
       cwd: repositoryRoot,
       env,

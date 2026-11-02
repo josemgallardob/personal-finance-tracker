@@ -28,7 +28,6 @@ function main(): void {
   const directory = mkdtempSync(join(tmpdir(), "pft-build-no-database-"));
   const absentDirectory = join(directory, "absent");
   const databasePath = join(absentDirectory, "personal-finance.db");
-  const demoDatabasePath = join(absentDirectory, "personal-finance-demo.db");
 
   try {
     const result = spawnSync("npm", ["run", "build"], {
@@ -37,7 +36,6 @@ function main(): void {
       env: {
         ...process.env,
         DATABASE_PATH: databasePath,
-        DEMO_DATABASE_PATH: demoDatabasePath,
         APP_URL: "http://localhost:3000",
         TZ: "Europe/Madrid",
       },
@@ -55,7 +53,7 @@ function main(): void {
       fail(`the build created the database directory ${absentDirectory}`);
     }
 
-    for (const filePath of [databasePath, demoDatabasePath]) {
+    for (const filePath of [databasePath]) {
       for (const suffix of ["", "-wal", "-shm"]) {
         const artifact = `${filePath}${suffix}`;
 

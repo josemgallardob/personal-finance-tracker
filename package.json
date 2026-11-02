@@ -1,6 +1,6 @@
 {
   "name": "personal-finance-tracker",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -15,8 +15,6 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"db/**/*.ts\" \"scripts/**/*.ts\" \"*.{json,ts,mjs}\" \".github/**/*.yml\" \".secretlintrc.json\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --conditions react-server scripts/migrate.ts",
-    "db:migrate:demo": "tsx --conditions react-server scripts/migrate-demo.ts",
-    "db:seed:demo": "tsx --conditions react-server scripts/seed-demo.ts",
     "recurring:run": "tsx --conditions react-server scripts/run-recurring.ts",
     "backup:run": "tsx --conditions react-server scripts/backup.ts",
     "restore:verify": "tsx --conditions react-server scripts/verify-restore.ts",

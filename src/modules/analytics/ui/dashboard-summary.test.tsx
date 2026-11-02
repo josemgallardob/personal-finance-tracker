@@ -199,6 +199,28 @@ describe("DashboardSummary period", () => {
     expect(recent.children).toHaveLength(2);
     expect(within(recent).getByText("Supermercado")).toBeVisible();
   });
+
+  it("orders recent movements before the period dashboard sections", async () => {
+    renderDashboard(dashboardFetch());
+    await waitForIncome("2500,00 €");
+
+    const orderedBlocks = [
+      sectionOf(dashboardCopy.recentTitle),
+      screen.getByRole("list", { name: dashboardCopy.summaryLabel }),
+      sectionOf(dashboardCopy.categoryTitle),
+      sectionOf(dashboardCopy.tagTitle),
+      sectionOf(dashboardCopy.comparisonTitle),
+      sectionOf(dashboardCopy.trendTitle),
+      sectionOf(dashboardCopy.averagesTitle),
+    ];
+
+    for (let index = 0; index < orderedBlocks.length - 1; index += 1) {
+      expect(
+        orderedBlocks[index].compareDocumentPosition(orderedBlocks[index + 1]) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+  });
 });
 
 describe("DashboardSummary states", () => {

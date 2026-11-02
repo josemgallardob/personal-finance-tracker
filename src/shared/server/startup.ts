@@ -1,9 +1,9 @@
 /**
  * Durable startup sequence for the private single-instance deployment.
  *
- * The process migrates and bootstraps the personal file, migrates the isolated
- * demonstration file, catches up the personal monthly due dates and only then
- * serves requests. Any failed step aborts before the HTTP server exists, so a
+ * The process migrates and bootstraps the personal file, catches up missed
+ * monthly due dates and only then serves requests. Any failed step aborts
+ * before the HTTP server exists, so a
  * broken migration can never serve stale or partial data. Nothing here prints
  * a file path, an amount or a concept: steps report their name and a closed
  * reason code.
@@ -13,11 +13,7 @@ import "server-only";
 
 import { runPersonalRecurringCatchUp } from "../../modules/recurring/server/run-personal-recurring";
 import { type EnvSource } from "./config";
-import {
-  closeSqliteConnection,
-  getDemoSqliteConnection,
-  getPersonalSqliteConnection,
-} from "./database";
+import { closeSqliteConnection, getPersonalSqliteConnection } from "./database";
 import { initializeDatabase } from "./initialize";
 
 /** Environment variable that selects the interface the server binds to. */
@@ -74,8 +70,7 @@ export type ServerBindingResult =
   | { readonly ok: false; readonly error: ServerBindingErrorCode };
 
 /** Ordered startup steps executed before the server accepts requests. */
-export type StartupStepName =
-  "migratePersonal" | "migrateDemo" | "recurringCatchUp";
+export type StartupStepName = "migratePersonal" | "recurringCatchUp";
 
 /** Reason why the startup sequence refused to serve. */
 export type StartupFailureCode = "invalidBinding" | "stepFailed";
@@ -161,8 +156,8 @@ export function formatStartupLog(
 }
 
 /**
- * Migrates both databases, bootstraps the personal workspace and recovers
- * missed monthly due dates.
+ * Migrates the database, bootstraps the personal workspace and recovers missed
+ * monthly due dates.
  *
  * Connections opened here are closed before returning, so the caller can hand
  * the files to the server process without holding a write transaction open.
@@ -190,23 +185,21 @@ export function prepareServer(
   const steps: StartupStepReport[] = [];
 
   try {
-    for (const step of ["migratePersonal", "migrateDemo"] as const) {
-      const migrated = migrateDatabase(step, env);
+    const migrated = migrateDatabase(env);
 
-      if (!migrated.ok) {
-        log(
-          formatStartupLog({
-            outcome: "failed",
-            step,
-            reason: migrated.error.reason,
-          }),
-        );
-        return migrated;
-      }
-
-      steps.push(migrated.value);
-      log(formatStartupLog({ outcome: "completed", ...migrated.value }));
+    if (!migrated.ok) {
+      log(
+        formatStartupLog({
+          outcome: "failed",
+          step: "migratePersonal",
+          reason: migrated.error.reason,
+        }),
+      );
+      return migrated;
     }
+
+    steps.push(migrated.value);
+    log(formatStartupLog({ outcome: "completed", ...migrated.value }));
 
     const summary = runPersonalRecurringCatchUp({
       env,
@@ -252,15 +245,12 @@ export function prepareServer(
 }
 
 function migrateDatabase(
-  step: "migratePersonal" | "migrateDemo",
   env: EnvSource,
 ):
   | { readonly ok: true; readonly value: StartupStepReport }
   | { readonly ok: false; readonly error: StartupFailure } {
-  const opened =
-    step === "migratePersonal"
-      ? getPersonalSqliteConnection(env)
-      : getDemoSqliteConnection(env);
+  const step = "migratePersonal" as const;
+  const opened = getPersonalSqliteConnection(env);
 
   if (!opened.ok) {
     return {

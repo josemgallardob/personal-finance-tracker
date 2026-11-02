@@ -4,11 +4,10 @@
  * The suite pins the policy of the accepted design: while the owner has not
  * touched a selector the selection follows the catalog, so an active
  * classification created afterwards joins it on its own; once the owner has
- * chosen, the choice is kept exactly, survives a remount and never mixes with
- * the selection of another application mode.
+ * chosen, the choice is kept exactly and survives a remount.
  */
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -36,18 +35,15 @@ const catalog: MultiSelectOption[] = [
 ];
 
 function Harness({
-  mode = "personal",
   options = catalog,
   storage,
 }: {
-  readonly mode?: string | null;
   readonly options?: readonly MultiSelectOption[];
   /** Undefined asks the hook for the real session of the browser. */
   readonly storage: SeriesStorage | null | undefined;
 }) {
   const selection = useSeriesSelection({
     dimension: "categories",
-    mode,
     options,
     ...(storage === undefined ? {} : { storage }),
   });
@@ -154,23 +150,6 @@ describe("useSeriesSelection", () => {
     });
   });
 
-  it("never reads the selection stored for another application mode", async () => {
-    const storage = memoryStorage({
-      "dashboard:series:categories:demo": '["cat-old"]',
-    });
-
-    const { rerender } = render(<Harness storage={storage} />);
-    await waitFor(() => {
-      expect(ids()).toBe("cat-food");
-    });
-
-    rerender(<Harness mode="demo" storage={storage} />);
-
-    await waitFor(() => {
-      expect(ids()).toBe("cat-old");
-    });
-  });
-
   it("restores every active option through Seleccionar todas", async () => {
     const storage = memoryStorage({
       "dashboard:series:categories:personal": "[]",
@@ -188,20 +167,6 @@ describe("useSeriesSelection", () => {
     expect(storage.entries["dashboard:series:categories:personal"]).toBe(
       '["cat-food"]',
     );
-  });
-
-  it("keeps working, without persisting, while the mode is unknown", async () => {
-    const storage = memoryStorage();
-    render(<Harness mode={null} storage={storage} />);
-
-    expect(ids()).toBe("cat-food");
-
-    await act(async () => {
-      screen.getByRole("button", { name: "Elegir archivada" }).click();
-    });
-
-    expect(ids()).toBe("cat-food");
-    expect(storage.entries).toEqual({});
   });
 
   it("works without any session storage at all", async () => {

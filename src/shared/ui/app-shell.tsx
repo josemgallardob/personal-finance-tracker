@@ -8,7 +8,6 @@ import {
   CreateTransactionDialog,
   createTransactionDialogCopy,
 } from "../../modules/transactions/ui/create-dialog";
-import { DemoModeControls } from "../../modules/preferences/ui/demo-actions";
 import { FinancialDataProvider } from "../client/financial-data-provider";
 import { Button } from "./button";
 import { cx } from "./class-names";
@@ -137,9 +136,6 @@ export function AppShell({ children }: AppShellProps) {
               </Button>
             </div>
           ) : null}
-          <div className="mb-6 w-full max-w-5xl">
-            <DemoModeControls />
-          </div>
           {children}
         </main>
         <CreateTransactionDialog

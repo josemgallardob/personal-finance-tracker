@@ -59,11 +59,9 @@ export const dashboardCopy = {
   trendTitle: "Evolución mensual",
   trendLoading: "Cargando la evolución mensual…",
   trendErrorTitle: "No se ha podido cargar la evolución mensual",
-  trendCaption: "Evolución mensual de ingresos y gastos",
+  trendCaption: "Evolución mensual de ingresos, gastos y balance neto",
   trendWindow: (start: string, end: string, months: number) =>
     `${start}–${end} · ${months === 1 ? "1 mes" : `${months} meses`}`,
-  trendIndependent:
-    "Esta serie mantiene su propia ventana de hasta 12 meses y no depende del periodo elegido en las tarjetas.",
   trendEmptyTitle: "Todavía no hay evolución que mostrar",
   trendEmptyDescription:
     "Registra tu primer movimiento para ver cómo evolucionan tus ingresos y gastos mes a mes.",

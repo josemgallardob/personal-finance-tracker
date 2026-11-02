@@ -14,7 +14,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import * as preferencesRoute from "../../../src/app/api/preferences/route";
 import {
-  PERSONAL_APPLICATION_MODE,
   PREFERENCES_CURRENCY,
   PREFERENCES_LOCALE,
   PREFERENCES_TIME_ZONE,
@@ -109,7 +108,6 @@ describe("GET /api/preferences", () => {
         locale: PREFERENCES_LOCALE,
         currency: PREFERENCES_CURRENCY,
         timeZone: PREFERENCES_TIME_ZONE,
-        mode: PERSONAL_APPLICATION_MODE,
         today: "2026-01-01",
       },
       requestId: expect.any(String),
@@ -148,37 +146,6 @@ describe("GET /api/preferences", () => {
     expect(response.status).toBe(200);
     expect(envelope.requestId).toBe("composed-request");
     expect(response.headers.get("x-request-id")).toBe("composed-request");
-  });
-
-  it("reports the validated demo cookie without exposing paths or workspace ids", async () => {
-    const { deps, logs } = preferenceDeps(
-      fixture,
-      new SystemClock(() => new Date("2026-09-06T10:00:00Z")),
-    );
-    const response = await createGetPreferencesHandler(deps)(
-      buildRequest({
-        path: "/api/preferences",
-        headers: { cookie: "mode=demo; workspaceId=forged" },
-        requestId: "pref-1",
-      }),
-    );
-    const body = await response.text();
-    const envelope = JSON.parse(body) as {
-      data: { mode: string };
-      requestId: string;
-    };
-
-    expect(envelope.data.mode).toBe("demo");
-    expect(envelope.requestId).toBe("pref-1");
-    expect(body).not.toContain(fixture.workspaceId);
-    expect(body).not.toContain(fixture.connection.filePath);
-    expect(body).not.toContain("DATABASE_PATH");
-    expect(body).not.toContain("APP_URL");
-    expect(body).not.toMatch(/sqlite/i);
-    expect(JSON.stringify(logs.entries)).not.toContain(fixture.workspaceId);
-    expect(JSON.stringify(logs.entries)).not.toContain(
-      fixture.connection.filePath,
-    );
   });
 
   it("preserves the fixed preferences after a process restart on the same file", async () => {
@@ -240,7 +207,6 @@ describe("GET /api/preferences", () => {
         locale: string;
         currency: string;
         timeZone: string;
-        mode: string;
         today: string;
       };
     };
@@ -250,7 +216,6 @@ describe("GET /api/preferences", () => {
           locale: string;
           currency: string;
           timeZone: string;
-          mode: string;
         };
       }
     ).data;
@@ -261,14 +226,12 @@ describe("GET /api/preferences", () => {
       locale: firstData.locale,
       currency: firstData.currency,
       timeZone: firstData.timeZone,
-      mode: firstData.mode,
       today: "2026-06-16",
     });
     expect(secondBody.data).toMatchObject({
       locale: "es-ES",
       currency: "EUR",
       timeZone: "Europe/Madrid",
-      mode: "personal",
     });
 
     file.cleanup();

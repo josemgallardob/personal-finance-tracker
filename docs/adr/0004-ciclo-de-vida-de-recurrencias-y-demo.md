@@ -1,10 +1,15 @@
 # ADR 0004 — Ciclo de vida de las recurrencias y aislamiento de la demostración
 
-- **Estado:** aceptado
+- **Estado:** sustituido parcialmente
 - **Fecha:** 2026-09-06
 - **Responsables:** propietario del producto
 - **Sustituye a:** no aplica
-- **Sustituido por:** no aplica
+- **Sustituido por:** retirada del modo de demostración en producción (2026-09-10)
+
+> Nota de vigencia: las decisiones sobre recurrencias siguen aceptadas. Las
+> decisiones sobre el modo y el archivo de demostración se conservan aquí como
+> registro histórico, pero dejaron de aplicar al producto en producción el
+> 2026-09-10.
 
 ## Contexto
 

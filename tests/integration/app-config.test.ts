@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { relative } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -30,7 +30,6 @@ describe("loadAppConfig", () => {
       ok: true,
       value: {
         databasePath: filePath,
-        demoDatabasePath: resolve(filePath, "..", "demo-finance.sqlite"),
         appUrl: "http://localhost:3000",
         timeZone: APPLICATION_TIME_ZONE,
       },
@@ -38,20 +37,19 @@ describe("loadAppConfig", () => {
   });
 
   it("resolves a relative database path without opening the file", () => {
-    const result = loadAppConfig(
-      createValidAppEnv("./data/personal-finance.db"),
-    );
+    const { filePath } = temporarySqliteFile();
+    const relativeDatabasePath = relative(process.cwd(), filePath);
+    const result = loadAppConfig(createValidAppEnv(relativeDatabasePath));
 
     expect(result).toEqual({
       ok: true,
       value: {
-        databasePath: resolve("./data/personal-finance.db"),
-        demoDatabasePath: resolve("./data/demo-finance.sqlite"),
+        databasePath: filePath,
         appUrl: "http://localhost:3000",
         timeZone: APPLICATION_TIME_ZONE,
       },
     });
-    expect(existsSync(resolve("./data/personal-finance.db"))).toBe(false);
+    expect(existsSync(filePath)).toBe(false);
   });
 
   it("reports every missing variable instead of stopping at the first", () => {
@@ -61,7 +59,6 @@ describe("loadAppConfig", () => {
       ok: false,
       errors: [
         { field: "databasePath", code: "required" },
-        { field: "demoDatabasePath", code: "required" },
         { field: "appUrl", code: "required" },
         { field: "timeZone", code: "required" },
       ],
@@ -79,7 +76,6 @@ describe("loadAppConfig", () => {
       ok: false,
       errors: [
         { field: "databasePath", code: "required" },
-        { field: "demoDatabasePath", code: "required" },
         { field: "appUrl", code: "required" },
         { field: "timeZone", code: "required" },
       ],
