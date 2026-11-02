@@ -31,8 +31,13 @@ the Git branch, worktree, test, commit, and review policies below still apply.
   changes are committed separately as `chore:` commits when the owner requests it.
 - Independent areas may run in parallel only after their external dependencies
   are integrated into `main` and shared-file ownership is clear.
-- A completed planned area may open its single documented pull request to `main`;
-  no agent may merge it without explicit project-owner authorization.
+- A completed planned area may open its single documented pull request to `main`.
+  Once the pull request checks pass and its scope is verified, the coordinating
+  agent may add that pull request to GitHub's merge queue; GitHub, not an agent,
+  creates the merge commit after the merge-group checks pass. This authorization
+  covers only the area pull request opened under the collaboration workflow.
+  Any other merge, bypass of pending or failed checks, or enqueueing of an
+  unrelated pull request requires explicit project-owner authorization.
 
 ## Language policy
 
