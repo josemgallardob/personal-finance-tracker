@@ -161,3 +161,4 @@ vite.config.ts.timestamp-*
 # Planning documents
 /docs/07-user-story-backlog.md
 /docs/08-agent-implementation-tasks.md
+.orca/
