@@ -199,12 +199,19 @@ async function seedRecurringRule(
   const category = categories.data.find(
     (item) => item.name === "Alquiler" && item.type === "expense",
   );
+  // The seeded movement stays in the database, so it must be dated today:
+  // a fixed past date becomes a closed month and gives the dashboard history.
+  const preferencesResponse = await request.get("/api/preferences");
+  expect(preferencesResponse.ok()).toBe(true);
+  const today = (
+    (await preferencesResponse.json()) as { data: { today: string } }
+  ).data.today;
   const created = await request.post("/api/transactions", {
     headers: { "content-type": "application/json", origin: e2eOrigin() },
     data: {
       type: "expense",
       amountMinor: 1_250,
-      date: "2026-09-08",
+      date: today,
       categoryId: category?.id,
       concept: "Regla accesible E2E",
     },
@@ -213,7 +220,10 @@ async function seedRecurringRule(
   const transaction = (await created.json()) as { data: { id: string } };
   const activated = await request.post("/api/recurring-rules", {
     headers: { "content-type": "application/json", origin: e2eOrigin() },
-    data: { transactionId: transaction.data.id, monthlyDay: 8 },
+    data: {
+      transactionId: transaction.data.id,
+      monthlyDay: Number(today.slice(8, 10)),
+    },
   });
   expect(activated.ok()).toBe(true);
   return (
