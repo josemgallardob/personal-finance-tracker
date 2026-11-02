@@ -108,7 +108,7 @@
     {
       "id": "KA-05",
       "title": "Validate, commit and push the Kanvas setup branch",
-      "state": "doing",
+      "state": "done",
       "group": "KA",
       "deps": ["KA-03", "KA-06", "KA-07", "KA-08"],
       "at": "2026-11-01T18:53:05Z",
@@ -134,6 +134,11 @@
           "at": "2026-11-02T12:55:32Z",
           "by": "claude-code",
           "text": "Owner chose to redact first. Done: the inventory text in KA-04 and the earlier notes on this task no longer restate details from the private backlog. The CLI cannot edit existing notes, so this was a minimal manual edit of kanvas.json (3 note texts), validated with kanvas check and prettier."
+        },
+        {
+          "at": "2026-11-02T12:56:00Z",
+          "by": "claude-code",
+          "text": "The Kanvas setup is committed and pushed: branch chore/setup-kanvas-board, commit 77e8d31, no pull request opened.\n- Contents: Kanvas skill and CLI (.agents/, .claude/), kanvas.json, and the Kanvas rules in AGENTS.md, CLAUDE.md and docs/agent-collaboration-workflow.md. .orca/ was not staged.\n- Verified: kanvas check OK, npm run format:check OK, secretlint OK, prettier OK on the three docs. The branch is based on main at 7273149, which already includes stable.\n- Redaction: details from the private backlog were removed from the board text before pushing (minimal manual edit of three notes, because the CLI cannot edit notes).\nTo check: the board file changes made after this commit (the notes on this task) are not committed; per the workflow they go in a separate chore commit when you ask. Decide whether to open the pull request to main."
         }
       ]
     },
