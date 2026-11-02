@@ -2,6 +2,12 @@
 
 These instructions are mandatory for every agent that modifies this repository.
 
+## Planning board
+
+Plan and track work on the Kanvas board; follow
+[`.agents/skills/kanvas/SKILL.md`](.agents/skills/kanvas/SKILL.md). Change
+`kanvas.json` only through the Kanvas CLI and write task text in English.
+
 ## Multi-agent collaboration
 
 When work is coordinated across agents or worktrees, read and follow
@@ -15,9 +21,14 @@ the Git branch, worktree, test, commit, and review policies below still apply.
 
 - One implementation agent owns an area branch at a time.
 - Each active area uses a separate worktree.
-- Implementation agents treat the local private backlog and task board as
-  read-only and report evidence to the coordinating agent.
-- Only the coordinating agent updates private task status and coordination data.
+- Implementation agents treat the Kanvas board as read-only and report evidence
+  to the coordinating agent.
+- Only the coordinating agent changes the Kanvas board during multi-agent work.
+  The project owner approves proposed tasks and marks reviewed tasks `done`.
+- Kanvas YOLO is allowed only for task chains inside one functional area, never
+  across areas, and only the project owner turns it on.
+- `kanvas.json` is tracked in Git. Never include it in a task commit; board
+  changes are committed separately as `chore:` commits when the owner requests it.
 - Independent areas may run in parallel only after their external dependencies
   are integrated into `main` and shared-file ownership is clear.
 - A completed planned area may open its single documented pull request to `main`;

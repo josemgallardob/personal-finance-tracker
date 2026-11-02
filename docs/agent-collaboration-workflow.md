@@ -3,8 +3,8 @@
 ## Purpose
 
 This document defines how the coordinating agent and implementation agents work
-together without duplicating work, sharing branches concurrently, or publishing
-private planning documents. It applies whenever implementation is split across
+together without duplicating work, sharing branches concurrently, or changing
+the shared task board concurrently. It applies whenever implementation is split across
 multiple agents and worktrees.
 
 The project owner remains the final authority for product decisions and changes
@@ -26,7 +26,7 @@ The relevant Orca concepts are:
 | Orca concept | Meaning in this project                                                                              |
 | ------------ | ---------------------------------------------------------------------------------------------------- |
 | **Run**      | One coordination namespace for an implementation session and its coordinator inbox.                  |
-| **Task**     | A logical work item mapped to a private-board ID such as `TX-02`.                                    |
+| **Task**     | A logical work item mapped to a Kanvas board task ID such as `TX-02`.                                |
 | **Dispatch** | One concrete attempt to execute a Task. A retry creates a new Dispatch without duplicating the Task. |
 | **Worker**   | The CLI agent process that implements a Dispatch in its assigned worktree.                           |
 | **Message**  | Heartbeats, questions, escalations, and completion reports exchanged through Orca.                   |
@@ -36,7 +36,7 @@ The execution relationship is:
 
 ```text
 Orca Run
-  ├── private-board task TX-02
+  ├── Kanvas task TX-02
   │    ├── Dispatch 1 → Codex worker → failed
   │    └── Dispatch 2 → Claude worker → worker_done
   └── Gate → pending product decision
@@ -83,18 +83,47 @@ provider-specific launch behavior.
 
 ## Sources of truth
 
-| Information                         | Source of truth                                 | Editor                                         |
-| ----------------------------------- | ----------------------------------------------- | ---------------------------------------------- |
-| Repository policy                   | `AGENTS.md`                                     | Project owner or explicitly assigned agent     |
-| Product and technical specification | Tracked files under `docs/`                     | Agent assigned to the documentation change     |
-| Accepted implementation             | `main` and its Git history                      | Changed only through the approved Git workflow |
-| User stories                        | Private `docs/07-user-story-backlog.md`         | Coordinating agent                             |
-| Task status and evidence            | Private `docs/08-agent-implementation-tasks.md` | Coordinating agent                             |
+| Information                         | Source of truth              | Editor                                             |
+| ----------------------------------- | ---------------------------- | -------------------------------------------------- |
+| Repository policy                   | `AGENTS.md`                  | Project owner or explicitly assigned agent         |
+| Product and technical specification | Tracked files under `docs/`  | Agent assigned to the documentation change         |
+| Accepted implementation             | `main` and its Git history   | Changed only through the approved Git workflow     |
+| Planned work, task status, evidence | Kanvas board (`kanvas.json`) | Coordinating agent; the owner approves and accepts |
 
-The two private paths are ignored symbolic links into the Git common directory.
-All worktrees belonging to this clone read the same underlying files. They must
-never be forced into Git, copied into a pull request, or quoted in public metadata.
-A separate clone does not receive them automatically.
+`kanvas.json` is tracked in Git so that board changes remain visible in history.
+Its task text is therefore public repository metadata: write it in English and
+never copy private material into it. Agents change it only through
+`python .agents/skills/kanvas/kanvas.py` and never edit it by hand. The
+coordinator keeps the authoritative copy in the original coordinator checkout.
+Workers do not edit or commit `kanvas.json` in their area worktrees, so a task
+commit never carries board changes. Board changes are committed separately, as
+`chore:` commits, when the project owner requests it.
+
+## Kanvas states
+
+Kanvas tasks move through five states. The workflow keeps the same checkpoints
+as before and maps them onto these states:
+
+| Kanvas state | Set by                                               | Meaning in this workflow                                                                                                                                |
+| ------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `proposed`   | Coordinator                                          | Planned task waiting for owner approval. Replaces `PENDIENTE`.                                                                                          |
+| `todo`       | Owner, by approving the proposal                     | Approved. Kanvas shows it as blocked while a dependency is not `done`. Replaces `LISTA`.                                                                |
+| `doing`      | Coordinator, with `start`                            | A Worker holds the Dispatch in its worktree. Replaces `EN_CURSO`.                                                                                       |
+| `review`     | Coordinator, with `finish`, after verifying evidence | The Worker's report is verified (`VERIFICADA`). Pull request, queue entry, and check results are recorded in notes while the task stays here (`EN_PR`). |
+| `done`       | Owner                                                | Integrated into `main` with the required checks green, and accepted (`INTEGRADA`).                                                                      |
+
+A blocker or a pending product decision uses `ask` or `pause` with a note that
+names the owner and the next action. It replaces `BLOQUEADA`.
+
+A task is `done` only after its code is integrated into `main`, because Kanvas
+unblocks dependent tasks on `done` and the dependency rules below require
+integration.
+
+Kanvas YOLO is allowed only for a chain of tasks inside one functional area,
+where an earlier task is satisfied by a verified commit on the same area branch.
+It is never used when a task depends on another area, because YOLO would mark
+that dependency `done` without integration into `main`. Only the owner turns
+YOLO on or off; the final task of the chain still goes to `review`.
 
 ## Roles and authority
 
@@ -103,6 +132,8 @@ A separate clone does not receive them automatically.
 The project owner:
 
 - chooses product priorities and accepts or rejects unresolved product decisions;
+- approves proposed tasks on the Kanvas board and marks reviewed tasks `done`,
+  the two transitions Kanvas reserves for the human;
 - decides when an area may start if prioritization is ambiguous;
 - may request exceptional review or intervention in the merge workflow;
 - may reassign the coordinator or an area owner explicitly.
@@ -112,15 +143,16 @@ verified-area and required-checks policy defined in the pull request lifecycle.
 
 ### Coordinating agent
 
-The coordinating agent is the only agent allowed to edit the private user-story
-backlog and implementation task board. It:
+The coordinating agent is the only agent allowed to change the Kanvas board
+during multi-agent work. It signs its changes with its tool name. It:
 
 - checks task dependencies and accepted decisions against `main`;
-- marks tasks ready, assigns an area owner, and records the relevant worktree;
+- proposes tasks, starts approved ones, assigns an area owner, and records the
+  relevant worktree in a task note;
 - ensures that no two agents own the same branch, area, or mutable shared file;
 - receives and verifies task reports, commit identifiers, test results, coverage,
   blockers, and pull request status;
-- updates the private task board after each verified transition;
+- updates the Kanvas board after each verified transition;
 - coordinates review, integration, cleanup, and the next available work;
 - records product decisions only after an explicit response from the owner.
 
@@ -133,9 +165,10 @@ same branch, commit, evidence, and review rules as any other implementation.
 An implementation agent owns one area at a time and:
 
 - works only in the assigned worktree, branch, and task scope;
-- reads `AGENTS.md`, this workflow, the assigned task, its cited user stories,
-  and the immediate dependency contracts before changing code;
-- treats the two private planning documents as read-only;
+- reads `AGENTS.md`, this workflow, the assigned Kanvas task with its notes, and
+  the immediate dependency contracts before changing code;
+- treats the Kanvas board as read-only and reports through Orca messages,
+  leaving every board change to the coordinator;
 - implements tasks sequentially, normally producing one commit per task;
 - includes meaningful tests and documentation required by the task in that commit;
 - runs the required checks and reports exact results to the coordinator;
@@ -190,30 +223,24 @@ Before opening an area, the coordinator verifies:
 4. No active agent owns the proposed branch or overlapping scope.
 5. The branch name, task order, and expected pull request target are recorded.
 
-The coordinator then changes the first eligible task from `PENDIENTE` to `LISTA`
-or `EN_CURSO` in the private board and records the owner and start date. These
-Spanish labels are quoted exactly because they are the canonical values used by
-the private Spanish task board.
+The coordinator then asks the owner to approve the area's proposed tasks on the
+Kanvas board (`proposed` to `todo`), starts the first ready task (`todo` to
+`doing`) with a plan note, and records the owner, branch, and worktree in a note.
 
 ### 2. Worktree provisioning
 
 The coordinator creates a dedicated branch and worktree from updated `main` using
-the naming rules in `AGENTS.md`. The repository-local `post-checkout` hook links
-the shared private planning files into the new worktree.
+the naming rules in `AGENTS.md`.
 
 The assigned agent verifies before editing:
 
 ```bash
 git status --short --branch
-git check-ignore -v \
-  docs/07-user-story-backlog.md \
-  docs/08-agent-implementation-tasks.md
-readlink -f docs/08-agent-implementation-tasks.md
+git ls-files --error-unmatch kanvas.json
 ```
 
-If either private path is missing, is not ignored, or is a regular tracked file,
-the agent stops and reports the condition. It must not recreate the private data
-from memory or publish a replacement.
+If `kanvas.json` is missing from the worktree, the agent stops and reports the
+condition. It does not recreate the board or edit it.
 
 ### 3. Task implementation
 
@@ -234,7 +261,7 @@ commit and coverage configuration is never manipulated.
 
 If a task is too large for a reviewable commit, the agent does not silently expand
 it. It proposes derived task IDs and boundaries to the coordinator, who updates
-the private board before implementation continues.
+the Kanvas board before implementation continues.
 
 ### 4. Task report and verification
 
@@ -268,11 +295,14 @@ the project owner or coordinator for forwarding; the task is not considered
 verified until the coordinator has observable evidence.
 
 The coordinator checks the branch, diff, commit, tests, coverage, Orca Dispatch
-receipt, and task contract. It then updates the private board:
+receipt, and task contract. It then updates the Kanvas board:
 
-- `VERIFICADA` when implementation and evidence satisfy the task;
-- `BLOQUEADA` with a concrete owner and next action when progress cannot continue;
-- remains `EN_CURSO` when corrections are still required.
+- runs `finish` with the verified report as its summary when implementation and
+  evidence satisfy the task, moving it to `review`;
+- uses `ask` or `pause` with a concrete owner and next action when progress
+  cannot continue;
+- keeps the task in `doing` and records the required corrections in a note when
+  corrections are still required.
 
 Only after this update may the agent begin the next task in the area.
 
@@ -287,13 +317,14 @@ The pull request:
 
 - contains the individual task commits from that area;
 - uses English title, summary, checklist, and review discussion;
-- describes behavior and public requirements without copying private backlog text;
+- describes behavior and public requirements in its own words;
 - reports tests, line and branch coverage, remaining gaps, migrations, and risks;
 - is configured for GitHub's merge-commit strategy; squash and rebase merges are
   not used for area pull requests;
 - waits for all configured GitHub Actions checks.
 
-The coordinator records the pull request as `EN_PR`. Review corrections stay on
+The coordinator records the pull request in a task note while the task stays in
+`review`. Review corrections stay on
 the same area branch and are associated with the affected task. The resulting
 history should retain meaningful task boundaries; fixup commits may be squashed
 into their task before merge when this can be done without disrupting another
@@ -322,9 +353,10 @@ After GitHub merges the pull request from the merge queue, the coordinator:
    with `origin/main` after every merged pull request.
 2. Verifies that the expected implementation and checks are present on both
    `origin/main` and the local `main`.
-3. Records the resulting integration commit and marks the area tasks `INTEGRADA`.
-4. Confirms that the merge commit was created by the merge queue and makes newly
-   satisfied dependent tasks ready.
+3. Records the resulting integration commit in a task note and asks the owner to
+   mark the area tasks `done`.
+4. Confirms that the merge commit was created by the merge queue and identifies
+   the dependent tasks that Kanvas now shows as ready.
 5. Confirms that the worker worktree has no uncommitted changes, removes that
    worktree, and removes its local area branch.
 6. Deletes the merged area branch from the remote with
@@ -350,10 +382,10 @@ A useful blocker report states the observed evidence, affected task IDs, options
 recommended next action, and who can resolve it. The coordinator updates the board
 and either reassigns independent work or asks the project owner for a decision.
 
-## Private-board update rules
+## Kanvas board update rules
 
-Implementation agents see updates immediately through the shared symbolic links,
-but they never edit those files. The coordinator updates the board:
+Implementation agents never change the board. They report through Orca messages
+and the coordinator records the result. The coordinator updates the board:
 
 - when reserving or handing off a task;
 - after checking each task report and commit;
@@ -363,13 +395,14 @@ but they never edit those files. The coordinator updates the board:
 
 The coordinator records responsible agent, branch, commit, commands, coverage,
 uncovered paths, Orca agent/model/effort, Dispatch ID, blocker, next action, pull
-request, and integration evidence. It does not invent missing SHAs, Dispatch IDs,
+request, and integration evidence in task notes and `finish` summaries, written
+for the owner who reviews them. It does not invent missing SHAs, Dispatch IDs,
 test results, or timestamps.
 
 The single-editor restriction is operational rather than a Unix permission: all
 agents on the VPS normally use the same operating-system account. If the project
 owner reassigns the coordinator, the previous editor finishes its write first and
-the new editor rereads the canonical document before updating it.
+the new editor rereads the board with `status` before updating it.
 
 ## Session completion checklist
 
@@ -379,12 +412,12 @@ the new editor rereads the canonical document before updating it.
 - Relevant checks and the complete required suite were actually run.
 - Coverage and remaining gaps are reported without manipulation.
 - The task commit and push are identifiable.
-- No private planning file is staged or published.
+- `kanvas.json` is not staged in the task commit.
 - The coordinator received a report and a concrete next step.
 
 ### Coordinating agent
 
-- The private board matches observable Git and CI state.
+- The Kanvas board matches observable Git and CI state.
 - No area, branch, worktree, or shared file has multiple owners.
 - Newly ready work respects integrated dependencies and accepted decisions.
 - Area pull requests are added to the merge queue by the coordinator only after

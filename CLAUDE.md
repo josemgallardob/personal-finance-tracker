@@ -39,8 +39,12 @@ Operational summary:
 15. Push an authorized task branch after committing.
 16. Do not create a pull request unless the user explicitly requests one. If
     requested, write all PR metadata and review discussion in English.
-17. In multi-agent work, one agent owns an area branch, only the coordinator edits
-    private planning state, and implementation agents report verifiable results
+17. Plan and track work on the Kanvas board; follow
+    `.agents/skills/kanvas/SKILL.md`.
+18. In multi-agent work, one agent owns an area branch, only the coordinator
+    changes the Kanvas board, and implementation agents report verifiable results
     using the collaboration workflow. Never merge without explicit owner approval.
+19. Kanvas YOLO is allowed only inside one functional area, never across areas.
+    Never include `kanvas.json` in a task commit.
 
 If this summary differs from `AGENTS.md`, `AGENTS.md` takes precedence.
